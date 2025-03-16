@@ -50,13 +50,6 @@
  #define TERTIARY_OUTPUT_PIN 5  // GPIO 5 - Tertiary output
  #define KNOCK_OUTPUT_PIN 18    // GPIO 18 - Knock signal
  #endif
- 
- // Clock frequency definitions
- #if defined(__AVR__)
- #define CPU_FREQUENCY 16000000UL // Fixed 16MHz for AVR (e.g., Uno)
- #elif defined(ESP32)
- #define APB_FREQUENCY 80000000UL // APB clock typically 80MHz for ESP32
- #endif
 
 struct configTable config;
 struct status currentStatus;
@@ -72,6 +65,7 @@ volatile uint8_t prescaler_bits = 0;
 volatile uint8_t last_prescaler_bits = 0;
 volatile uint16_t new_OCR1A = 5000; // Default for AVR timer
 #if defined(ESP32)
+uint32_t apb_frequency = 80000000UL; // APB clock typically 80MHz for ESP32
 volatile uint64_t new_timer_ticks = 1000; // Default for ESP32 timer
 hw_timer_t *timer = NULL;          // ESP32 hardware timer
 #endif
@@ -204,6 +198,7 @@ void setup() {
   ADCSRA |= B01000000; // Start conversion
   #elif defined(ESP32)
   // ESP32 timer setup
+  apb_frequency = getApbFrequency(); // Just in case it is different than the default
   timer = timerBegin(0, 80, true); // Timer 0, prescaler 80, count up
   timerAttachInterrupt(timer, &onTimer, true);
   timerAlarmWrite(timer, 1000, true); // Initial value, updated later
@@ -371,7 +366,7 @@ void reset_new_OCR1A(uint32_t new_rpm) {
   #elif defined(ESP32)
   uint64_t f_interrupt = ((uint64_t)new_rpm * Wheels[config.wheel].wheel_max_edges) / 60ULL;
   if (f_interrupt == 0) f_interrupt = 1;
-  new_timer_ticks = (APB_FREQUENCY / 80) / f_interrupt;
+  new_timer_ticks = (apb_frequency / 80) / f_interrupt;
   if (new_timer_ticks < 1) new_timer_ticks = 1;
   #endif
 }
