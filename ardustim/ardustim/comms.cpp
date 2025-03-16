@@ -25,9 +25,11 @@
 #include "comms.h"
 #include "storage.h"
 #include "wheel_defs.h"
+#if defined(__AVR__)
 #include <avr/pgmspace.h>
-#include <math.h>
 #include <util/delay.h>
+#endif
+#include <math.h>
 
 /* External Globla Variables */
 extern wheels Wheels[];
@@ -64,9 +66,21 @@ void commandParser()
     case 'a':
       break;
 
+    case 'b': // Send the board type
+      #if defined(__AVR__)
+      Serial.println("AVR");
+      #elif defined(ESP8266)
+      Serial.println("ESP8266");
+      #elif defined(ESP32)
+      Serial.println("ESP32");
+      #else
+      Serial.println("Unknown");
+      #endif
+      break;
+
     case 'c': //Receive a full config buffer
       //uint8_t targetBytes = (sizeof(struct configTable)-1); //No byte is sent for the version
-      while(Serial.available() < (sizeof(struct configTable)-1) ) {} //Wait for all bytes
+      while(Serial.available() < static_cast<int>(sizeof(struct configTable) - 1)) {} //Wait for all bytes
       for(uint8_t x=1; x<(sizeof(struct configTable)); x++)
       {
         *((uint8_t *)pnt_Config + x) = Serial.read(); //Read each byte into the config table

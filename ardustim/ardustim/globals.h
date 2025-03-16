@@ -106,7 +106,6 @@ const uint8_t sin_100_90[] PROGMEM =
 };
 
 //A sin wave of amplitude 100 with a complete cycle in 120 degrees
-
 const uint8_t sin_100_120[] PROGMEM = 
 { 
   0,0,0,1,1,2,2,3,4,5,7,8,10,11,13,15,17,19,

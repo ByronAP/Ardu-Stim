@@ -21,7 +21,9 @@
  #ifndef __WHEEL_DEFS_H__
  #define __WHEEL_DEFS_H__
  
+ #if defined(__AVR__)
  #include <avr/pgmspace.h>
+ #endif
  
  /* Wheel patterns! 
   *
