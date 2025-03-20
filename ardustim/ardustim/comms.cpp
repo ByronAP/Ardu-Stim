@@ -170,17 +170,31 @@ void commandParser()
   cmdPending = false;
 }
 
-/* Helper function to spit out amount of ram remainig */
-//! Returns the amount of freeRAM
-/*!
- * Figures out the amount of free RAM remaining nad returns it to the caller
- * \return amount of free memory
+/**
+ * @brief Returns the amount of free RAM available
+ * 
+ * For AVR, calculates free RAM using stack and heap pointers.
+ * For ESP32, uses ESP.getFreeHeap() to get free heap size.
+ * 
+ * @return uint32_t Free RAM in bytes
  */
-uint16_t freeRam () {
-  extern int __heap_start, *__brkval; 
-  int v; 
-  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
-}
+uint32_t freeRam() {
+  #if defined(__AVR__)
+      extern int __heap_start, *__brkval;
+      int v;
+      int free_memory;
+      if (__brkval == 0) {
+          free_memory = (int) &v - (int) &__heap_start;
+      } else {
+          free_memory = (int) &v - (int) __brkval;
+      }
+      return (uint32_t) free_memory;
+  #elif defined(ESP32)
+      return ESP.getFreeHeap();  // Returns free heap size as uint32_t
+  #else
+      return 0;  // Unsupported platform
+  #endif
+  }
 
 /* SerialUI Callbacks */
 /**
