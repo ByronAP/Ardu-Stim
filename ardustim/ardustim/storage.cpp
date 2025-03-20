@@ -5,17 +5,20 @@
 #include "globals.h"
 
 #if defined(ESP32)
-Preferences preferences;
+Preferences preferences; // Global instance for ESP32
 #endif
 
+/**
+ * @brief Loads configuration from storage
+ */
 void loadConfig()
 {
   config.version = VERSION;
   #if defined(__AVR__)
-  if(EEPROM.read(EEPROM_VERSION) == 255)
+  if(EEPROM.read(EEPROM_VERSION) == 255) // New device
   {
     //New arduino
-    config.wheel = 5; //36-1
+    config.wheel = 5; // Default: 36-1
     currentStatus.rpm = 3000;
     currentStatus.base_rpm = 3000;
     config.mode = POT_RPM;
@@ -71,7 +74,6 @@ void loadConfig()
     highByte = EEPROM.read(EEPROM_COMPRESSION_OFFSET);
     lowByte = EEPROM.read(EEPROM_COMPRESSION_OFFSET+1);
     config.compressionOffset = word(highByte, lowByte);
-    //config.compressionType = COMPRESSION_TYPE_6CYL_4STROKE;
 
     //Error checking
     if(config.wheel >= MAX_WHEELS) { config.wheel = 5; }
@@ -85,8 +87,7 @@ void loadConfig()
   #elif defined(ESP32)
   preferences.begin("ardustim", false);
   preferences.getBytes("config", &config, sizeof(config));
-  if (config.version != VERSION) {
-    // Set defaults if version mismatch or first run
+  if (config.version != VERSION) { // Version mismatch or first run
     config.version = VERSION;
     config.wheel = 5;
     currentStatus.rpm = 3000;
@@ -105,6 +106,9 @@ void loadConfig()
   #endif
 }
 
+/**
+ * @brief Saves configuration to storage
+ */
 void saveConfig()
 {
   #if defined(__AVR__)

@@ -22,7 +22,7 @@
  #define __WHEEL_DEFS_H__
  
  #if defined(__AVR__)
- #include <avr/pgmspace.h>
+ #include <avr/pgmspace.h> // For PROGMEM on AVR
  #endif
  
  /* Wheel patterns! 
@@ -66,7 +66,9 @@
    */
 
   
-  /* Wheel types we know about...
+  /** @enum WheelType
+   * @brief Enumerates supported wheel patterns
+   * Wheel types we know about...
    * This enumerations is the INDEX into the Wheels[] array of structures
    * defined in main file. That struct contains pointers to the following:
    * wheel name in a user friendly string

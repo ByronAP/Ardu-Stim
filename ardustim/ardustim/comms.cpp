@@ -31,7 +31,7 @@
 #endif
 #include <math.h>
 
-/* External Globla Variables */
+/* External Global Variables */
 extern wheels Wheels[];
 
 /* Volatile variables (USED in ISR's) */
@@ -39,11 +39,12 @@ extern volatile bool normal;
 extern volatile uint16_t edge_counter;
 extern volatile uint16_t new_OCR1A;
 
+// Command processing variables
 bool cmdPending;
 byte currentCommand;
 
-//! Initializes the serial port and sets up the Menu
-/*!
+// Initializes the serial port and sets up the Menu
+/* @brief Initializes serial communication
  * Sets up the serial port and menu for the serial user interface
  * Sets user input timeout to 20 seconds and overall interactivity timeout at 30
  * at which point it'll disconnect the user
@@ -54,6 +55,9 @@ void serialSetup()
   cmdPending = false;
 }
 
+/**
+ * @brief Parses incoming serial commands
+ */
 void commandParser()
 {
   char buf[80];
@@ -66,7 +70,7 @@ void commandParser()
     case 'a':
       break;
 
-    case 'b': // Send the board type
+    case 'b': // Report board type
       #if defined(__AVR__)
       Serial.println("AVR");
       #elif defined(ESP8266)
@@ -78,8 +82,7 @@ void commandParser()
       #endif
       break;
 
-    case 'c': //Receive a full config buffer
-      //uint8_t targetBytes = (sizeof(struct configTable)-1); //No byte is sent for the version
+    case 'c':// Receive full config
       while(Serial.available() < static_cast<int>(sizeof(struct configTable) - 1)) {} //Wait for all bytes
       for(uint8_t x=1; x<(sizeof(struct configTable)); x++)
       {
@@ -87,17 +90,14 @@ void commandParser()
       }
       break;
 
-    case 'C': //Send the current config
+    case 'C': // Send current config
       for(uint8_t x=0; x<sizeof(struct configTable); x++)
       {
         Serial.write(*((uint8_t *)pnt_Config + x)); //Each byte is simply the location in memory of the config Page + the offset
       }
       break;
       
-    case 'L': // send the list of wheel names
-      //First byte sent is the number of wheels
-      //Serial.println(MAX_WHEELS);
-      
+    case 'L': // Send the list of wheel names      
       //Wheel names are then sent 1 per line
       for(byte x=0;x<MAX_WHEELS;x++)
       {
@@ -106,19 +106,19 @@ void commandParser()
       }
       break;
 
-    case 'n': //Send the number of wheels
+    case 'n': // Send number of wheels
       Serial.println(MAX_WHEELS);
       break;
 
-    case 'N': //Send the number of the current wheel
+    case 'N': // Send current wheel index
       Serial.println(config.wheel);
       break;
     
-    case 'p': //Send the size of the current wheel
+    case 'p': // Send current wheel size (edges)
       Serial.println(Wheels[config.wheel].wheel_max_edges);
       break;
 
-    case 'P': //Send the pattern for the current wheel
+    case 'P': // Send current wheel pattern
       for(uint16_t x=0; x<Wheels[config.wheel].wheel_max_edges; x++)
       {
         if(x != 0) { Serial.print(","); }
@@ -131,27 +131,24 @@ void commandParser()
       Serial.println(Wheels[config.wheel].wheel_degrees);
       break;
 
-    case 'R': //Send the current RPM
+    case 'R': // Send current RPM
       Serial.println(currentStatus.rpm);
       break;
 
-    case 'r': //Set the high and low RPM for sweep mode
+    case 'r': // Set sweep mode parameters
       config.mode = LINEAR_SWEPT_RPM;
       while(Serial.available() < 6) {} //Wait for 4 bytes representing the new low and high RPMs
 
       config.sweep_low_rpm = word(Serial.read(), Serial.read());
       config.sweep_high_rpm = word(Serial.read(), Serial.read());
       config.sweep_interval = word(Serial.read(), Serial.read());
-
-      //sweep_low_rpm = 100;
-      //sweep_high_rpm = 4000;
       break;
 
-    case 's': //Save the current config
+    case 's': // Save config to storage
       saveConfig();
       break;
 
-    case 'S': //Set the current wheel
+    case 'S': // Set current wheel
       while(Serial.available() < 1) {} 
       tmp_wheel = Serial.read();
       if(tmp_wheel < MAX_WHEELS)
@@ -161,7 +158,7 @@ void commandParser()
       }
       break;
 
-    case 'X': //Just a test method for switching the to the next wheel
+    case 'X': // Test: Switch to next wheel
       select_next_wheel_cb();
       strcpy_P(buf,Wheels[config.wheel].decoder_name);
       Serial.println(buf);
@@ -186,7 +183,9 @@ uint16_t freeRam () {
 }
 
 /* SerialUI Callbacks */
-//! Inverts the polarity of the primary output signal
+/**
+ * @brief Toggles inversion of the primary output
+ */
 void toggle_invert_primary_cb()
 {
   extern uint8_t output_invert_mask;
@@ -194,13 +193,18 @@ void toggle_invert_primary_cb()
 
 }
 
-//! Inverts the polarity of the secondary output signal
+/**
+ * @brief Toggles inversion of the secondary output
+ */
 void toggle_invert_secondary_cb()
 {
   extern uint8_t output_invert_mask;
   output_invert_mask ^= 0x02; /* Flip cam invert mask bit */
 }
 
+/**
+ * @brief Updates system for a new wheel selection
+ */
 void display_new_wheel()
 {
   reset_new_OCR1A(currentStatus.rpm);
@@ -208,7 +212,9 @@ void display_new_wheel()
 }
 
 
-//! Selects the next wheel in the list
+/**
+ * @brief Selects the next wheel in the list
+ */
 /*!
  * Selects the next wheel, if at the end, wrap to the beginning of the list,
  * re-calculate the OCR1A value (RPM) and reset, return user information on the
@@ -224,8 +230,9 @@ void select_next_wheel_cb()
   display_new_wheel();
 }
 
-//
-//! Selects the previous wheel in the list
+/**
+ * @brief Selects the previous wheel in the list
+ */
 /*!
  * Selects the nex, if at the beginning, wrap to the end of the list,
  * re-calculate the OCR1A value (RPM) and reset, return user information on the
