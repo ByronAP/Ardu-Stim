@@ -32,7 +32,6 @@
  #include <avr/interrupt.h>
  #elif defined(ESP32)
  #include <esp_timer.h>
- #include <Preferences.h>
  #endif
  
  // Pin definitions
@@ -250,10 +249,6 @@ void setup() {
   timerAttachInterrupt(timer, &onTimer, true); // Attach ISR
   timerAlarmWrite(timer, 1000, true); // Initial value (updated by setRPM)
   timerAlarmEnable(timer);            // Enable timer interrupts
-
-  // Initialize Preferences for configuration storage
-  Preferences preferences;
-  preferences.begin("ardustim", false);
   #endif
 
   sei(); // Enable interrupts after setup
