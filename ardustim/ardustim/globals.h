@@ -23,6 +23,11 @@
 #define __GLOBALS_H__
 
 #include "Arduino.h"
+
+#define LOOKAHEAD_CACHE_SIZE 24   // Small lookahead cache
+extern uint8_t lookahead_cache[LOOKAHEAD_CACHE_SIZE];
+extern volatile uint16_t cache_start_edge;  // First edge in the cache
+
 #include "wheel_defs.h"
 
 #define VERSION 2 // Configuration version number
@@ -45,7 +50,6 @@
 #define TERTIARY_OUTPUT_PIN  5  // GPIO 5 - Tertiary output
 #define KNOCK_OUTPUT_PIN     18    // GPIO 18 - Knock signal
 #endif
-
 
 // Compression type definitions
 #define COMPRESSION_TYPE_1CYL_4STROKE 0 // Not supported

@@ -226,6 +226,12 @@ void display_new_wheel()
 {
   reset_new_OCR1A(currentStatus.rpm);
   edge_counter = 0; // Reset to beginning of the wheel pattern */
+
+// Refill the lookahead cache for the new wheel
+cache_start_edge = 0;
+for (uint8_t i = 0; i < LOOKAHEAD_CACHE_SIZE && i < Wheels[config.wheel].wheel_max_edges; i++) {
+  lookahead_cache[i] = decode_wheel_pattern(Wheels[config.wheel].edge_states_ptr, i);
+  }
 }
 
 
