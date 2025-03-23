@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArduStim Wheel Pattern Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+            max-width: 200px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .stats {
+            background-color: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .example {
+            background-color: #f0f0f0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>ArduStim Wheel Pattern Converter</h1>
+    <p>This tool converts standard wheel pattern arrays to the Run-Length Encoded (RLE) format to save memory on your microcontroller.</p>
+    
+    <div class="tabs">
+        <div class="tab active" data-tab="converter">Converter</div>
+        <div class="tab" data-tab="instructions">Instructions</div>
+        <div class="tab" data-tab="about">About RLE Format</div>
+    </div>
+    
+    <div id="converter" class="tab-content active">
+        <div class="container">
+            <h2>Input Pattern</h2>
+            <p>Paste your wheel pattern array below (comma-separated numbers from the array):</p>
+            <textarea id="inputPattern" placeholder="e.g., 1,0,1,0,1,0,1,0,0,0,0,0"></textarea>
+            
+            <button id="convertButton">Convert to RLE</button>
+            
+            <h2>RLE Output</h2>
+            <textarea id="outputRLE" readonly></textarea>
+            
+            <h2>Optimized RLE Output</h2>
+            <p>This version finds repeating patterns for even more compression:</p>
+            <textarea id="outputOptimizedRLE" readonly></textarea>
+            
+            <div class="stats" id="stats">
+                <h3>Compression Statistics</h3>
+                <p>Original size: <span id="originalSize">0</span> bytes</p>
+                <p>RLE size: <span id="rleSize">0</span> bytes (<span id="rlePercent">0</span>% of original)</p>
+                <p>Optimized RLE size: <span id="optimizedSize">0</span> bytes (<span id="optimizedPercent">0</span>% of original)</p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="instructions" class="tab-content">
+        <h2>How to Use This Tool</h2>
+        <ol>
+            <li>Copy the contents of your wheel pattern array (just the numbers and commas, not the variable declaration or PROGMEM).</li>
+            <li>Paste the pattern into the "Input Pattern" text area.</li>
+            <li>Click "Convert to RLE" to see the compressed versions.</li>
+            <li>Copy the preferred format (regular RLE or optimized) to use in your code.</li>
+        </ol>
+        
+        <h3>Example Input</h3>
+        <div class="example">1,0,1,0,1,0,1,0,0,0,0,0</div>
+        
+        <h3>How to Use the Generated Code</h3>
+        <p>Replace your wheel pattern definitions with the RLE format. You'll also need to modify the wheel access code to read the RLE format. See the "About RLE Format" tab for details on the format and decoder.</p>
+    </div>
+    
+    <div id="about" class="tab-content">
+        <h2>About Run-Length Encoding (RLE)</h2>
+        <p>Run-Length Encoding is a simple compression technique that replaces repeated values with a value and a count of repetitions.</p>
+        
+        <h3>Basic RLE Format</h3>
+        <p>The basic RLE format used here is:</p>
+        <div class="example">value1, count1, value2, count2, ...</div>
+        <p>Which means "value1 repeated count1 times, followed by value2 repeated count2 times, etc."</p>
+        
+        <h3>Optimized RLE Format</h3>
+        <p>The optimized format looks for repeating patterns and encodes them as:</p>
+        <div class="example">pattern_length, [pattern values], repeat_count, [more patterns]...</div>
+        <p>For example, if the pattern "1,0" repeats 10 times, it would be encoded as:</p>
+        <div class="example">2, 1,0, 10, [rest of the data]</div>
+        
+        <h3>Decoder Code</h3>
+        <p>Here's the C/C++ code you'll need to add to your ArduStim project to read the RLE format:</p>
+        <div class="example">
+// For basic RLE format
+uint8_t getEdgeState(const unsigned char* pattern, uint16_t index) {
+  uint16_t pos = 0;
+  uint16_t currentIndex = 0;
+  
+  while (currentIndex <= index) {
+    uint8_t value = pgm_read_byte(&pattern[pos++]);
+    uint8_t count = pgm_read_byte(&pattern[pos++]);
+    
+    if (currentIndex + count > index) {
+      // Found the segment containing our index
+      return value;
+    }
+    
+    currentIndex += count;
+  }
+  
+  return 0; // Default value
+}
+
+// For optimized RLE format
+uint8_t getEdgeStateOptimized(const unsigned char* pattern, uint16_t index) {
+  uint16_t pos = 0;
+  uint16_t currentIndex = 0;
+  
+  while (currentIndex <= index) {
+    uint8_t patternLength = pgm_read_byte(&pattern[pos++]);
+    
+    // If pattern length is 0, we've reached the end
+    if (patternLength == 0) break;
+    
+    // Store the pattern
+    uint8_t patternValues[16]; // Max pattern length
+    for (uint8_t i = 0; i < patternLength; i++) {
+      patternValues[i] = pgm_read_byte(&pattern[pos++]);
+    }
+    
+    uint8_t repeatCount = pgm_read_byte(&pattern[pos++]);
+    uint16_t totalEntries = patternLength * repeatCount;
+    
+    if (currentIndex + totalEntries > index) {
+      // Our target index is within this repeated pattern
+      uint16_t localIndex = (index - currentIndex) % patternLength;
+      return patternValues[localIndex];
+    }
+    
+    currentIndex += totalEntries;
+  }
+  
+  return 0; // Default value
+}
+        </div>
+        
+        <h3>Memory Savings</h3>
+        <p>The RLE format typically reduces the wheel pattern size by 50-80% depending on the pattern complexity. The optimized format can achieve even better compression for highly repetitive patterns.</p>
+    </div>
+    
+    <script>
+        // Tab switching functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and content
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab and its content
+                tab.classList.add('active');
+                document.getElementById(tab.getAttribute('data-tab')).classList.add('active');
+            });
+        });
+        
+        // RLE conversion functions
+        function toBasicRLE(pattern) {
+            if (!pattern || pattern.length === 0) return [];
+            
+            const result = [];
+            let currentValue = pattern[0];
+            let count = 1;
+            
+            for (let i = 1; i < pattern.length; i++) {
+                if (pattern[i] === currentValue && count < 255) {
+                    count++;
+                } else {
+                    result.push(currentValue, count);
+                    currentValue = pattern[i];
+                    count = 1;
+                }
+            }
+            
+            // Add the last run
+            result.push(currentValue, count);
+            
+            return result;
+        }
+        
+        function findPattern(arr, startIndex, maxLength) {
+            // Find repeating patterns by trying different pattern lengths
+            let bestPattern = { length: 1, count: 1 };
+            
+            for (let patternLength = 1; patternLength <= maxLength && startIndex + patternLength * 2 <= arr.length; patternLength++) {
+                const pattern = arr.slice(startIndex, startIndex + patternLength);
+                let count = 1;
+                let i = startIndex + patternLength;
+                
+                // Count consecutive occurrences of this pattern
+                while (i + patternLength <= arr.length) {
+                    let matches = true;
+                    for (let j = 0; j < patternLength; j++) {
+                        if (arr[i + j] !== pattern[j]) {
+                            matches = false;
+                            break;
+                        }
+                    }
+                    
+                    if (!matches) break;
+                    count++;
+                    i += patternLength;
+                }
+                
+                // Calculate "value" of this pattern (compression efficiency)
+                const compressionValue = (count * patternLength) / (patternLength + 1);
+                const bestValue = (bestPattern.count * bestPattern.length) / (bestPattern.length + 1);
+                
+                if (compressionValue > bestValue && count > 1) {
+                    bestPattern = { 
+                        pattern, 
+                        length: patternLength, 
+                        count: count, 
+                        endIndex: i
+                    };
+                }
+            }
+            
+            return bestPattern;
+        }
+        
+        function toOptimizedRLE(pattern) {
+            if (!pattern || pattern.length === 0) return [];
+            
+            const result = [];
+            let index = 0;
+            
+            while (index < pattern.length) {
+                // Find the best repeating pattern starting at current position
+                const bestPattern = findPattern(pattern, index, 16); // Limit pattern length for efficiency
+                
+                if (bestPattern.count > 1) {
+                    // We found a repeating pattern worth encoding
+                    result.push(bestPattern.length); // Pattern length
+                    result.push(...bestPattern.pattern); // Pattern values
+                    result.push(bestPattern.count); // Repeat count
+                    index = bestPattern.endIndex;
+                } else {
+                    // No good repeating pattern, use regular RLE
+                    let currentValue = pattern[index];
+                    let count = 1;
+                    index++;
+                    
+                    while (index < pattern.length && pattern[index] === currentValue && count < 255) {
+                        count++;
+                        index++;
+                    }
+                    
+                    result.push(1); // Pattern length of 1
+                    result.push(currentValue); // The value
+                    result.push(count); // Repeat count
+                }
+            }
+            
+            result.push(0); // End marker
+            return result;
+        }
+        
+        // Convert button functionality
+        document.getElementById('convertButton').addEventListener('click', () => {
+            const input = document.getElementById('inputPattern').value;
+            
+            // Parse the input as an array of numbers
+            const pattern = input.split(',')
+                .map(s => s.trim())
+                .filter(s => s.length > 0)
+                .map(s => parseInt(s));
+            
+            if (pattern.length === 0 || pattern.some(isNaN)) {
+                alert('Please enter a valid pattern (comma-separated numbers)');
+                return;
+            }
+            
+            // Convert to RLE formats
+            const rlePattern = toBasicRLE(pattern);
+            const optimizedPattern = toOptimizedRLE(pattern);
+            
+            // Display results
+            document.getElementById('outputRLE').value = rlePattern.join(',');
+            document.getElementById('outputOptimizedRLE').value = optimizedPattern.join(',');
+            
+            // Update statistics
+            document.getElementById('originalSize').textContent = pattern.length;
+            document.getElementById('rleSize').textContent = rlePattern.length;
+            document.getElementById('rlePercent').textContent = Math.round((rlePattern.length / pattern.length) * 100);
+            document.getElementById('optimizedSize').textContent = optimizedPattern.length;
+            document.getElementById('optimizedPercent').textContent = Math.round((optimizedPattern.length / pattern.length) * 100);
+        });
+    </script>
+</body>
+</html>

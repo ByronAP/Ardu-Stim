@@ -21,9 +21,9 @@
 
 #include "globals.h"
 #include "ardustim.h"
+#include "hal.h"
 #include "enums.h"
 #include "comms.h"
-#include "storage.h"
 #include "wheel_defs.h"
 #if defined(__AVR__)
 #include <avr/pgmspace.h>
@@ -148,7 +148,7 @@ void commandParser()
       break;
 
     case 's': // Save config to storage
-      saveConfig();
+    storage_hal_save_config(&config);
       break;
 
     case 'S': // Set current wheel

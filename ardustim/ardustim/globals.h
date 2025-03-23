@@ -18,6 +18,7 @@
  * along with any ArduStim software.  If not, see http://www.gnu.org/licenses/
  *
  */
+
 #ifndef __GLOBALS_H__
 #define __GLOBALS_H__
 
@@ -29,6 +30,22 @@
 #define TMP_RPM_SHIFT 4 // Shift factor for ADC to RPM conversion (x16, 0-16384 RPM)
 #define TMP_RPM_CAP 9000 // Maximum RPM via potentiometer (capped from 16384)
 #define EEPROM_LAST_MODE 100 // Unused EEPROM address
+
+// Pin definitions - Conditional defines based on platform
+#if defined(__AVR__)
+#define ADC_PIN             A0             // Analog input for RPM potentiometer
+#define PRIMARY_OUTPUT_PIN   8   // PB0 - Primary output (crank)
+#define SECONDARY_OUTPUT_PIN 9 // PB1 - Secondary output (cam1)
+#define TERTIARY_OUTPUT_PIN 10 // PB2 - Tertiary output (cam2)
+#define KNOCK_OUTPUT_PIN    11    // PB3 - Knock signal
+#elif defined(ESP32)
+#define ADC_PIN             34             // GPIO 34 for ADC input (RPM pot)
+#define PRIMARY_OUTPUT_PIN   2   // GPIO 2 - Primary output
+#define SECONDARY_OUTPUT_PIN 4 // GPIO 4 - Secondary output
+#define TERTIARY_OUTPUT_PIN  5  // GPIO 5 - Tertiary output
+#define KNOCK_OUTPUT_PIN     18    // GPIO 18 - Knock signal
+#endif
+
 
 // Compression type definitions
 #define COMPRESSION_TYPE_1CYL_4STROKE 0 // Not supported
@@ -73,9 +90,9 @@ struct _wheels {
     const uint16_t wheel_degrees;          // Degrees per cycle (360 or 720)
 };
 
-//A sin wave of amplitude 100 with a complete cycle in 180 degrees (1 entry per degree). 
-const uint8_t sin_100_180[] PROGMEM = 
-{ 
+//A sin wave of amplitude 100 with a complete cycle in 180 degrees (1 entry per degree).
+const uint8_t sin_100_180[] PROGMEM =
+{
   0,0,0,0,0,1,1,1,2,2,3,4,4,5,6,7,8,9,10,11,
   12,13,14,15,17,18,19,21,22,24,25,27,28,30,
   31,33,35,36,38,40,41,43,45,47,48,50,52,53,
@@ -91,9 +108,9 @@ const uint8_t sin_100_180[] PROGMEM =
   1,0,0,0,0
 };
 
-//A sin wave of amplitude 100 with a complete cycle in 90 degrees (1 entry per degree). 
-const uint8_t sin_100_90[] PROGMEM = 
-{ 
+//A sin wave of amplitude 100 with a complete cycle in 90 degrees (1 entry per degree).
+const uint8_t sin_100_90[] PROGMEM =
+{
   0,0,0,1,2,3,4,6,8,10,12,14,17,19,22,25,28,
   31,35,38,41,45,48,52,55,59,62,65,69,72,75,
   78,81,83,86,88,90,92,94,96,97,98,99,100,100,
@@ -103,8 +120,8 @@ const uint8_t sin_100_90[] PROGMEM =
 };
 
 //A sin wave of amplitude 100 with a complete cycle in 120 degrees
-const uint8_t sin_100_120[] PROGMEM = 
-{ 
+const uint8_t sin_100_120[] PROGMEM =
+{
   0,0,0,1,1,2,2,3,4,5,7,8,10,11,13,15,17,19,
   21,23,25,27,30,32,35,37,40,42,45,47,50,53,
   55,58,60,63,65,68,70,73,75,77,79,81,83,85,
