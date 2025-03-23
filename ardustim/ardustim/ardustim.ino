@@ -32,6 +32,7 @@
  #include <avr/interrupt.h>
  #elif defined(ESP32)
  #include <esp_timer.h>
+ #include <driver/gptimer.h>
  #endif
  
  // Pin definitions
@@ -67,8 +68,8 @@ volatile uint16_t new_OCR1A = 5000;        // Default timer compare value for AV
 
 #if defined(ESP32)
 uint32_t apb_frequency = 80000000UL; // APB clock frequency (typically 80 MHz for ESP32)
-volatile uint64_t new_timer_ticks = 1000; // Default timer ticks for ESP32 (controls interrupt frequency)
-hw_timer_t *timer = NULL;          // Pointer to ESP32 hardware timer instance
+volatile uint64_t new_timer_interval_us = 1000; // Default timer ticks for ESP32 (controls interrupt frequency)
+gptimer_handle_t timer = NULL;          // Pointer to ESP32 hardware timer instance
 #endif
 
 volatile uint16_t edge_counter = 0;      // Counts edges in the wheel pattern
@@ -188,20 +189,32 @@ ISR(TIMER1_COMPA_vect) {
  * Generates the wheel pattern by setting output pins based on the current edge state.
  * Runs on a hardware timer interrupt, updating pins every `new_timer_ticks` microseconds.
  */
-void IRAM_ATTR onTimer() {
-  uint8_t state = pgm_read_byte(&Wheels[config.wheel].edge_states_ptr[edge_counter]) ^ output_invert_mask;
-  digitalWrite(PRIMARY_OUTPUT_PIN, (state & 1) ? HIGH : LOW);
-  digitalWrite(SECONDARY_OUTPUT_PIN, (state & 2) ? HIGH : LOW);
-  digitalWrite(TERTIARY_OUTPUT_PIN, (state & 4) ? HIGH : LOW);
-  digitalWrite(KNOCK_OUTPUT_PIN, (state & 8) ? HIGH : LOW);
-  edge_counter++;
-  if (edge_counter == Wheels[config.wheel].wheel_max_edges) {
-    edge_counter = 0;
-    cycleDuration = micros() - cycleStartTime;
-    cycleStartTime = micros();
+bool __attribute__((section(".iram1.0"))) timer_callback(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx) {
+    // Copy the body of your existing onTimer() function here
+    uint8_t state = pgm_read_byte(&Wheels[config.wheel].edge_states_ptr[edge_counter]) ^ output_invert_mask;
+    digitalWrite(PRIMARY_OUTPUT_PIN, (state & 1) ? HIGH : LOW);
+    digitalWrite(SECONDARY_OUTPUT_PIN, (state & 2) ? HIGH : LOW);
+    digitalWrite(TERTIARY_OUTPUT_PIN, (state & 4) ? HIGH : LOW);
+    digitalWrite(KNOCK_OUTPUT_PIN, (state & 8) ? HIGH : LOW);
+    edge_counter = edge_counter + 1;
+    if (edge_counter == Wheels[config.wheel].wheel_max_edges) {
+      edge_counter = 0;
+      cycleDuration = micros() - cycleStartTime;
+      cycleStartTime = micros();
+    }
+    
+    // Update timer interval (equivalent to timerAlarmWrite in v2.x)
+    if (new_timer_interval_us != edata->alarm_value) {
+      gptimer_alarm_config_t alarm_config;
+      memset(&alarm_config, 0, sizeof(alarm_config));
+      alarm_config.alarm_count = new_timer_interval_us;
+      alarm_config.reload_count = 0; // one-shot mode
+      alarm_config.flags.auto_reload_on_alarm = true;
+      gptimer_set_alarm_action(timer, &alarm_config);
+    }
+    
+    return true; // Return true to keep timer running
   }
-  timerAlarmWrite(timer, new_timer_ticks, true);
-}
 #endif
 
 /**
@@ -245,10 +258,30 @@ void setup() {
   #elif defined(ESP32)
   // ESP32 timer setup
   apb_frequency = getApbFrequency(); // Get actual APB frequency (typically 80 MHz)
-  timer = timerBegin(0, 80, true);   // Timer 0, prescaler 80, count up
-  timerAttachInterrupt(timer, &onTimer, true); // Attach ISR
-  timerAlarmWrite(timer, 1000, true); // Initial value (updated by setRPM)
-  timerAlarmEnable(timer);            // Enable timer interrupts
+  gptimer_config_t timer_config = {
+    .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+    .direction = GPTIMER_COUNT_UP,
+    .resolution_hz = 1000000, // 1 MHz (1 tick = 1 microsecond)
+  };
+  ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &timer));
+  
+  // Set up callback
+  gptimer_event_callbacks_t timer_callbacks = {
+    .on_alarm = timer_callback,
+  };
+  ESP_ERROR_CHECK(gptimer_register_event_callbacks(timer, &timer_callbacks, NULL));
+  
+  // Set up initial alarm
+  gptimer_alarm_config_t alarm_config = {
+    .alarm_count = 1000, // 1000 microseconds = 1 ms
+    .reload_count = 0,
+  };
+  alarm_config.flags.auto_reload_on_alarm = true;
+  ESP_ERROR_CHECK(gptimer_set_alarm_action(timer, &alarm_config));
+  
+  // Enable timer
+  ESP_ERROR_CHECK(gptimer_enable(timer));
+  ESP_ERROR_CHECK(gptimer_start(timer));
   #endif
 
   sei(); // Enable interrupts after setup
@@ -403,9 +436,9 @@ void reset_new_OCR1A(uint32_t new_rpm) {
   #elif defined(ESP32)
   // ESP32: Calculate timer ticks based on APB frequency
   uint64_t f_interrupt = ((uint64_t)new_rpm * Wheels[config.wheel].wheel_max_edges) / 60ULL;
-  if (f_interrupt == 0) f_interrupt = 1; // Prevent division by zero
-  new_timer_ticks = (apb_frequency / 80) / f_interrupt; // Adjust for prescaler 80
-  if (new_timer_ticks < 1) new_timer_ticks = 1; // Minimum tick value
+  if (f_interrupt == 0) f_interrupt = 1;
+  new_timer_interval_us = 1000000ULL / f_interrupt; // Convert frequency to period in microseconds
+  if (new_timer_interval_us < 1) new_timer_interval_us = 1;
   #endif
 }
 

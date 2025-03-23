@@ -29,6 +29,9 @@
 #include <avr/pgmspace.h>
 #include <util/delay.h>
 #endif
+#if defined(ESP32)
+#include <esp_heap_caps.h>
+#endif
 #include <math.h>
 
 /* External Global Variables */
@@ -190,7 +193,7 @@ uint32_t freeRam() {
       }
       return (uint32_t) free_memory;
   #elif defined(ESP32)
-      return ESP.getFreeHeap();  // Returns free heap size as uint32_t
+      return heap_caps_get_free_size(MALLOC_CAP_8BIT);
   #else
       return 0;  // Unsupported platform
   #endif
