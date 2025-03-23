@@ -38,6 +38,10 @@ uint32_t sweep_time_counter = 0; // Timer for RPM sweep mode
 uint8_t sweep_direction = ASCENDING; // Direction of RPM sweep (ASCENDING or DESCENDING)
 uint8_t output_invert_mask = 0x00; // Mask for inverting output pins
 
+// Lookahead cache for wheel pattern decoding
+uint8_t lookahead_cache[LOOKAHEAD_CACHE_SIZE];
+volatile uint16_t cache_start_edge = 0;  // First edge in the cache
+
 // Array of wheel definitions for various crankshaft/camshaft patterns
 wheels Wheels[MAX_WHEELS] = {
    /* Pointer to friendly name string, pointer to edge array, RPM Scaler, Number of edges in the array, whether the number of edges covers 360 or 720 degrees */
@@ -131,6 +135,12 @@ void setup() {
   gpio_hal_init();             // Init GPIO using HAL
   adc_hal_init();              // Init ADC using HAL
 
+  // Initialize lookahead cache
+  cache_start_edge = 0;
+  for (uint8_t i = 0; i < LOOKAHEAD_CACHE_SIZE && i < Wheels[config.wheel].wheel_max_edges; i++) {
+    lookahead_cache[i] = decode_wheel_pattern(Wheels[config.wheel].edge_states_ptr, i);
+  }
+
   timer_hal_init(currentStatus.rpm, onTimer); // Init Timer HAL, pass onTimer callback
 
   sei(); // Enable interrupts after setup
@@ -138,7 +148,30 @@ void setup() {
 }
 
 void onTimer() {
-  uint8_t state = pgm_read_byte(&Wheels[config.wheel].edge_states_ptr[edge_counter]) ^ output_invert_mask;
+    uint8_t state;
+  
+    // Get state from the lookahead cache
+    uint16_t cache_index = edge_counter - cache_start_edge;
+    
+    if (cache_index < LOOKAHEAD_CACHE_SIZE) {
+      // Fast path: value is in cache
+      state = lookahead_cache[cache_index];
+    } else {
+      // We've moved beyond the cache - refresh it
+      cache_start_edge = edge_counter;
+      
+      // Fill cache with next LOOKAHEAD_CACHE_SIZE values
+      for (uint8_t i = 0; i < LOOKAHEAD_CACHE_SIZE && (edge_counter + i) < Wheels[config.wheel].wheel_max_edges; i++) {
+        lookahead_cache[i] = decode_wheel_pattern(Wheels[config.wheel].edge_states_ptr, edge_counter + i);
+      }
+      
+      // Now use the first value
+      state = lookahead_cache[0];
+    }
+    
+    // Apply output inversion
+    state ^= output_invert_mask;
+
   gpio_hal_set_output(PRIMARY_OUTPUT_PIN, (state & 1));    // Use GPIO HAL to set outputs
   gpio_hal_set_output(SECONDARY_OUTPUT_PIN, (state & 2));  // Use GPIO HAL
   gpio_hal_set_output(TERTIARY_OUTPUT_PIN, (state & 4));   // Use GPIO HAL
@@ -149,6 +182,14 @@ void onTimer() {
       edge_counter = 0;
       cycleDuration = micros() - cycleStartTime;
       cycleStartTime = micros();
+
+      // Reset cache for new cycle
+    cache_start_edge = 0;
+    
+    // Pre-fill cache for the next cycle
+    for (uint8_t i = 0; i < LOOKAHEAD_CACHE_SIZE && i < Wheels[config.wheel].wheel_max_edges; i++) {
+      lookahead_cache[i] = decode_wheel_pattern(Wheels[config.wheel].edge_states_ptr, i);
+    }
   }
 }
 

@@ -28,6 +28,11 @@
             border: 1px solid #ccc;
             border-radius: 4px;
         }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
         button {
             padding: 10px 15px;
             background-color: #4CAF50;
@@ -36,17 +41,25 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
-            margin: 10px 0;
             max-width: 200px;
         }
+        button#resetButton {
+            background-color: #f44336;
+        }
         button:hover {
-            background-color: #45a049;
+            opacity: 0.9;
         }
         .stats {
             background-color: #f8f8f8;
             padding: 15px;
             border-radius: 4px;
             margin-top: 20px;
+        }
+        .stats .info {
+            font-size: 0.9em;
+            font-style: italic;
+            color: #666;
+            margin-top: 10px;
         }
         .example {
             background-color: #f0f0f0;
@@ -102,20 +115,22 @@
             <p>Paste your wheel pattern array below (comma-separated numbers from the array):</p>
             <textarea id="inputPattern" placeholder="e.g., 1,0,1,0,1,0,1,0,0,0,0,0"></textarea>
             
-            <button id="convertButton">Convert to RLE</button>
+            <div class="button-group">
+                <button id="convertButton">Convert to RLE</button>
+                <button id="resetButton">Reset</button>
+            </div>
             
             <h2>RLE Output</h2>
-            <textarea id="outputRLE" readonly></textarea>
-            
-            <h2>Optimized RLE Output</h2>
-            <p>This version finds repeating patterns for even more compression:</p>
+            <p>This optimized format finds repeating patterns for maximum compression:</p>
             <textarea id="outputOptimizedRLE" readonly></textarea>
             
             <div class="stats" id="stats">
-                <h3>Compression Statistics</h3>
-                <p>Original size: <span id="originalSize">0</span> bytes</p>
-                <p>RLE size: <span id="rleSize">0</span> bytes (<span id="rlePercent">0</span>% of original)</p>
-                <p>Optimized RLE size: <span id="optimizedSize">0</span> bytes (<span id="optimizedPercent">0</span>% of original)</p>
+                <h3>Compression Statistics (Byte Count)</h3>
+                <p>Original pattern: <span id="originalSize">0</span> bytes</p>
+                <p>RLE pattern: <span id="optimizedSize">0</span> bytes</p>
+                <p>Compression ratio: <span id="optimizedPercent">0</span>% of original size</p>
+                <p>Space saving: <span id="spaceSaving">0</span>%</p>
+                <p class="info">Note: These statistics only count the actual data bytes stored in memory, ignoring all comments, whitespace, and variable declarations.</p>
             </div>
         </div>
     </div>
@@ -133,79 +148,23 @@
         <div class="example">1,0,1,0,1,0,1,0,0,0,0,0</div>
         
         <h3>How to Use the Generated Code</h3>
-        <p>Replace your wheel pattern definitions with the RLE format. You'll also need to modify the wheel access code to read the RLE format. See the "About RLE Format" tab for details on the format and decoder.</p>
+        <p>Replace your wheel pattern definitions with the RLE format. You'll also need to modify the wheel access code to read the RLE format. See the "About RLE Format" tab for details on the format.</p>
     </div>
     
     <div id="about" class="tab-content">
         <h2>About Run-Length Encoding (RLE)</h2>
         <p>Run-Length Encoding is a simple compression technique that replaces repeated values with a value and a count of repetitions.</p>
         
-        <h3>Basic RLE Format</h3>
-        <p>The basic RLE format used here is:</p>
-        <div class="example">value1, count1, value2, count2, ...</div>
-        <p>Which means "value1 repeated count1 times, followed by value2 repeated count2 times, etc."</p>
-        
-        <h3>Optimized RLE Format</h3>
-        <p>The optimized format looks for repeating patterns and encodes them as:</p>
+        <h3>RLE Format</h3>
+        <p>The RLE format used looks for repeating patterns and encodes them as:</p>
         <div class="example">pattern_length, [pattern values], repeat_count, [more patterns]...</div>
         <p>For example, if the pattern "1,0" repeats 10 times, it would be encoded as:</p>
         <div class="example">2, 1,0, 10, [rest of the data]</div>
         
-        <h3>Decoder Code</h3>
-        <p>Here's the C/C++ code you'll need to add to your ArduStim project to read the RLE format:</p>
-        <div class="example">
-// For basic RLE format
-uint8_t getEdgeState(const unsigned char* pattern, uint16_t index) {
-  uint16_t pos = 0;
-  uint16_t currentIndex = 0;
-  
-  while (currentIndex <= index) {
-    uint8_t value = pgm_read_byte(&pattern[pos++]);
-    uint8_t count = pgm_read_byte(&pattern[pos++]);
-    
-    if (currentIndex + count > index) {
-      // Found the segment containing our index
-      return value;
-    }
-    
-    currentIndex += count;
-  }
-  
-  return 0; // Default value
-}
-
-// For optimized RLE format
-uint8_t getEdgeStateOptimized(const unsigned char* pattern, uint16_t index) {
-  uint16_t pos = 0;
-  uint16_t currentIndex = 0;
-  
-  while (currentIndex <= index) {
-    uint8_t patternLength = pgm_read_byte(&pattern[pos++]);
-    
-    // If pattern length is 0, we've reached the end
-    if (patternLength == 0) break;
-    
-    // Store the pattern
-    uint8_t patternValues[16]; // Max pattern length
-    for (uint8_t i = 0; i < patternLength; i++) {
-      patternValues[i] = pgm_read_byte(&pattern[pos++]);
-    }
-    
-    uint8_t repeatCount = pgm_read_byte(&pattern[pos++]);
-    uint16_t totalEntries = patternLength * repeatCount;
-    
-    if (currentIndex + totalEntries > index) {
-      // Our target index is within this repeated pattern
-      uint16_t localIndex = (index - currentIndex) % patternLength;
-      return patternValues[localIndex];
-    }
-    
-    currentIndex += totalEntries;
-  }
-  
-  return 0; // Default value
-}
-        </div>
+        <h3>Handling Long Repeats</h3>
+        <p>Since the ArduStim uses unsigned chars (bytes) with values 0-255, any run length greater than 255 is automatically split into multiple chunks:</p>
+        <div class="example">// Example: 300 repetitions of pattern "1,0" 
+RLE: 2, 1,0, 255, 2, 1,0, 45</div>
         
         <h3>Memory Savings</h3>
         <p>The RLE format typically reduces the wheel pattern size by 50-80% depending on the pattern complexity. The optimized format can achieve even better compression for highly repetitive patterns.</p>
@@ -225,6 +184,33 @@ uint8_t getEdgeStateOptimized(const unsigned char* pattern, uint16_t index) {
             });
         });
         
+        // Function to clean input - strip comments, whitespace, and variable declarations
+        function cleanInput(input) {
+            // Remove variable declaration part if present
+            let cleaned = input.replace(/const\s+unsigned\s+char\s+\w+\[\]\s+PROGMEM\s*=\s*{/g, '');
+            cleaned = cleaned.replace(/^\s*{/g, ''); // Also remove any initial { character
+            cleaned = cleaned.replace(/};\s*$/g, ''); // Remove closing }; if present
+            
+            // Remove comments (anything between /* and */)
+            cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
+            
+            // Remove C++ style comments (anything after //)
+            cleaned = cleaned.replace(/\/\/.*$/gm, '');
+            
+            // Split by commas, trim whitespace, and filter out empty strings
+            return cleaned.split(',')
+                .map(s => s.trim())
+                .filter(s => s.length > 0)
+                .map(s => parseInt(s))
+                .filter(n => !isNaN(n));
+        }
+        
+        // Function to count actual bytes used in storage
+        function getByteCount(array) {
+            // In C/C++, each element in the unsigned char array uses 1 byte
+            return array.length;
+        }
+        
         // RLE conversion functions
         function toBasicRLE(pattern) {
             if (!pattern || pattern.length === 0) return [];
@@ -237,9 +223,20 @@ uint8_t getEdgeStateOptimized(const unsigned char* pattern, uint16_t index) {
                 if (pattern[i] === currentValue && count < 255) {
                     count++;
                 } else {
+                    // If we've hit the maximum count or the value changed
+                    // Add the current run to the result
                     result.push(currentValue, count);
-                    currentValue = pattern[i];
-                    count = 1;
+                    
+                    // If the value changed, start a new run
+                    if (pattern[i] !== currentValue) {
+                        currentValue = pattern[i];
+                        count = 1;
+                    } else {
+                        // The value hasn't changed, but we hit the max count
+                        // Start a new run with the same value
+                        currentValue = pattern[i];
+                        count = 1;
+                    }
                 }
             }
             
@@ -301,11 +298,33 @@ uint8_t getEdgeStateOptimized(const unsigned char* pattern, uint16_t index) {
                 const bestPattern = findPattern(pattern, index, 16); // Limit pattern length for efficiency
                 
                 if (bestPattern.count > 1) {
-                    // We found a repeating pattern worth encoding
-                    result.push(bestPattern.length); // Pattern length
-                    result.push(...bestPattern.pattern); // Pattern values
-                    result.push(bestPattern.count); // Repeat count
-                    index = bestPattern.endIndex;
+                    // Check if pattern count exceeds 255
+                    if (bestPattern.count <= 255) {
+                        // Standard case - count fits in a byte
+                        result.push(bestPattern.length); // Pattern length
+                        result.push(...bestPattern.pattern); // Pattern values
+                        result.push(bestPattern.count); // Repeat count
+                        index = bestPattern.endIndex;
+                    } else {
+                        // Handle counts > 255 by breaking into multiple entries
+                        // Add as many complete 255-count chunks as needed
+                        const fullChunks = Math.floor(bestPattern.count / 255);
+                        for (let i = 0; i < fullChunks; i++) {
+                            result.push(bestPattern.length); // Pattern length
+                            result.push(...bestPattern.pattern); // Pattern values
+                            result.push(255); // Maximum count
+                        }
+                        
+                        // Add the remaining count if any
+                        const remainingCount = bestPattern.count % 255;
+                        if (remainingCount > 0) {
+                            result.push(bestPattern.length); // Pattern length
+                            result.push(...bestPattern.pattern); // Pattern values
+                            result.push(remainingCount); // Remaining count
+                        }
+                        
+                        index = bestPattern.endIndex;
+                    }
                 } else {
                     // No good repeating pattern, use regular RLE
                     let currentValue = pattern[index];
@@ -331,31 +350,40 @@ uint8_t getEdgeStateOptimized(const unsigned char* pattern, uint16_t index) {
         document.getElementById('convertButton').addEventListener('click', () => {
             const input = document.getElementById('inputPattern').value;
             
-            // Parse the input as an array of numbers
-            const pattern = input.split(',')
-                .map(s => s.trim())
-                .filter(s => s.length > 0)
-                .map(s => parseInt(s));
+            // Parse the input as an array of numbers, cleaning comments and whitespace
+            const pattern = cleanInput(input);
             
-            if (pattern.length === 0 || pattern.some(isNaN)) {
+            if (pattern.length === 0) {
                 alert('Please enter a valid pattern (comma-separated numbers)');
                 return;
             }
             
-            // Convert to RLE formats
-            const rlePattern = toBasicRLE(pattern);
+            // Convert to RLE format
             const optimizedPattern = toOptimizedRLE(pattern);
             
             // Display results
-            document.getElementById('outputRLE').value = rlePattern.join(',');
             document.getElementById('outputOptimizedRLE').value = optimizedPattern.join(',');
             
-            // Update statistics
-            document.getElementById('originalSize').textContent = pattern.length;
-            document.getElementById('rleSize').textContent = rlePattern.length;
-            document.getElementById('rlePercent').textContent = Math.round((rlePattern.length / pattern.length) * 100);
-            document.getElementById('optimizedSize').textContent = optimizedPattern.length;
-            document.getElementById('optimizedPercent').textContent = Math.round((optimizedPattern.length / pattern.length) * 100);
+            // Update statistics - using actual byte counts
+            const originalBytes = getByteCount(pattern);
+            const optimizedBytes = getByteCount(optimizedPattern);
+            const compressionRatio = Math.round((optimizedBytes / originalBytes) * 100);
+            const spaceSaving = Math.round(100 - compressionRatio);
+            
+            document.getElementById('originalSize').textContent = originalBytes;
+            document.getElementById('optimizedSize').textContent = optimizedBytes;
+            document.getElementById('optimizedPercent').textContent = compressionRatio;
+            document.getElementById('spaceSaving').textContent = spaceSaving;
+        });
+        
+        // Reset button functionality
+        document.getElementById('resetButton').addEventListener('click', () => {
+            document.getElementById('inputPattern').value = '';
+            document.getElementById('outputOptimizedRLE').value = '';
+            document.getElementById('originalSize').textContent = '0';
+            document.getElementById('optimizedSize').textContent = '0';
+            document.getElementById('optimizedPercent').textContent = '0';
+            document.getElementById('spaceSaving').textContent = '0';
         });
     </script>
 </body>
