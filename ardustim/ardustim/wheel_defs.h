@@ -32,33 +32,37 @@
  *
  * @param pattern Pointer to the RLE-encoded pattern in PROGMEM
  * @param index The index to retrieve
- * @return uint8_t The value at the specified index
+ * @return uint8_t The value at the specified index, or 0 if index is out of bounds
  */
 inline uint8_t decode_wheel_pattern(const unsigned char *pattern, uint16_t index)
 {
     uint16_t pos = 0;
     uint16_t currentIndex = 0;
 
-    while (1)
+    while (1) // No arbitrary counter limit
     {
-        // Read pattern length and check for end
-        uint8_t patternLength = pgm_read_byte(&pattern[pos++]);
+        // Read pattern length and check for end marker
+        uint8_t patternLength = pgm_read_byte(&pattern[pos]);
         if (patternLength == 0 || patternLength > 16)
-            return 0;
+            return 0; // End of pattern marker or invalid length
+        
+        pos++;
 
         // Position of pattern values
         uint16_t valuePos = pos;
         pos += patternLength; // Skip past values
 
-        // Read repeat count
+        // Read repeat count (must be > 0)
         uint8_t repeatCount = pgm_read_byte(&pattern[pos++]);
+        
         uint16_t sectionSize = patternLength * repeatCount;
 
         // Check if our target index is in this section
         if (currentIndex + sectionSize > index)
         {
             // Calculate offset within pattern
-            return pgm_read_byte(&pattern[valuePos + ((index - currentIndex) % patternLength)]);
+            uint16_t patternOffset = (index - currentIndex) % patternLength;
+            return pgm_read_byte(&pattern[valuePos + patternOffset]);
         }
 
         // Move to next section
