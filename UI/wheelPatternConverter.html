@@ -97,6 +97,10 @@
         .tab-content.active {
             display: block;
         }
+        #validationResult {
+            margin-top: 10px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -123,6 +127,7 @@
             <h2>RLE Output</h2>
             <p>This optimized format finds repeating patterns for maximum compression:</p>
             <textarea id="outputOptimizedRLE" readonly></textarea>
+            <div id="validationResult"></div>
             
             <div class="stats" id="stats">
                 <h3>Compression Statistics (Byte Count)</h3>
@@ -346,6 +351,33 @@ RLE: 2, 1,0, 255, 2, 1,0, 45</div>
             return result;
         }
         
+        // Decode an RLE pattern back to its full sequence
+        function decodeRLE(rle) {
+            const result = [];
+            let i = 0;
+            while (i < rle.length && rle[i] !== 0) {
+                const patternLength = rle[i];
+                i++;
+                const pattern = rle.slice(i, i + patternLength);
+                i += patternLength;
+                const repeatCount = rle[i];
+                i++;
+                for (let j = 0; j < repeatCount; j++) {
+                    result.push(...pattern);
+                }
+            }
+            return result;
+        }
+        
+        // Compare two arrays for equality
+        function arraysEqual(a, b) {
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) {
+                if (a[i] !== b[i]) return false;
+            }
+            return true;
+        }
+        
         // Convert button functionality
         document.getElementById('convertButton').addEventListener('click', () => {
             const input = document.getElementById('inputPattern').value;
@@ -374,6 +406,17 @@ RLE: 2, 1,0, 255, 2, 1,0, 45</div>
             document.getElementById('optimizedSize').textContent = optimizedBytes;
             document.getElementById('optimizedPercent').textContent = compressionRatio;
             document.getElementById('spaceSaving').textContent = spaceSaving;
+            
+            // Validate the conversion
+            const decodedPattern = decodeRLE(optimizedPattern);
+            const validationResult = document.getElementById('validationResult');
+            if (arraysEqual(decodedPattern, pattern)) {
+                validationResult.textContent = "Validation: Passed";
+                validationResult.style.color = "green";
+            } else {
+                validationResult.textContent = "Validation: Failed";
+                validationResult.style.color = "red";
+            }
         });
         
         // Reset button functionality
@@ -384,6 +427,7 @@ RLE: 2, 1,0, 255, 2, 1,0, 45</div>
             document.getElementById('optimizedSize').textContent = '0';
             document.getElementById('optimizedPercent').textContent = '0';
             document.getElementById('spaceSaving').textContent = '0';
+            document.getElementById('validationResult').textContent = '';
         });
     </script>
 </body>
