@@ -124,16 +124,21 @@ void commandParser()
       break;
 
     case 'P': // Send current wheel pattern
-      for(uint16_t x=0; x<Wheels[config.wheel].wheel_max_edges; x++)
+    {
+      uint16_t wheel_max_edges = Wheels[config.wheel].wheel_max_edges;
+        
+      for(uint16_t x=0; x < wheel_max_edges; x++)
       {
         if(x != 0) { Serial.print(","); }
-
-        byte tempByte = pgm_read_byte(&Wheels[config.wheel].edge_states_ptr[x]);
+  
+        // Use decode_wheel_pattern instead of direct access to handle RLE correctly
+        byte tempByte = decode_wheel_pattern(Wheels[config.wheel].edge_states_ptr, x);
         Serial.print(tempByte);
       }
       Serial.println("");
       //2nd row of data sent is the number of degrees the wheel runs over (360 or 720 typically)
       Serial.println(Wheels[config.wheel].wheel_degrees);
+    }
       break;
 
     case 'R': // Send current RPM
