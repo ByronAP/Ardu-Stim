@@ -78,8 +78,10 @@ void commandParser()
       Serial.println("AVR");
       #elif defined(ESP8266)
       Serial.println("ESP8266");
-      #elif defined(ESP32)
+      #elif defined(ESP32) && !defined(ESP32C6)
       Serial.println("ESP32");
+      #elif defined(ESP32C6)
+      Serial.println("ESP32C6");
       #else
       Serial.println("Unknown");
       #endif

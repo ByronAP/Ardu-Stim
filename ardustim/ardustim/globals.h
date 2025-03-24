@@ -38,17 +38,27 @@ extern volatile uint16_t cache_start_edge;  // First edge in the cache
 
 // Pin definitions - Conditional defines based on platform
 #if defined(__AVR__)
-#define ADC_PIN             A0             // Analog input for RPM potentiometer
+// AVR specific pin definitions
+#define ADC_PIN             A0   // Analog input for RPM potentiometer
 #define PRIMARY_OUTPUT_PIN   8   // PB0 - Primary output (crank)
-#define SECONDARY_OUTPUT_PIN 9 // PB1 - Secondary output (cam1)
-#define TERTIARY_OUTPUT_PIN 10 // PB2 - Tertiary output (cam2)
-#define KNOCK_OUTPUT_PIN    11    // PB3 - Knock signal
-#elif defined(ESP32)
-#define ADC_PIN             34             // GPIO 34 for ADC input (RPM pot)
+#define SECONDARY_OUTPUT_PIN 9   // PB1 - Secondary output (cam1)
+#define TERTIARY_OUTPUT_PIN 10   // PB2 - Tertiary output (cam2)
+#define KNOCK_OUTPUT_PIN    11   // PB3 - Knock signal
+#elif defined(ESP32) && !defined(ESP32C6)
+// ESP32 specific pin definitions
+#define ADC_PIN             34   // GPIO 34 for ADC input (RPM pot)
 #define PRIMARY_OUTPUT_PIN   2   // GPIO 2 - Primary output
-#define SECONDARY_OUTPUT_PIN 4 // GPIO 4 - Secondary output
-#define TERTIARY_OUTPUT_PIN  5  // GPIO 5 - Tertiary output
-#define KNOCK_OUTPUT_PIN     18    // GPIO 18 - Knock signal
+#define SECONDARY_OUTPUT_PIN 4   // GPIO 4 - Secondary output
+#define TERTIARY_OUTPUT_PIN  5   // GPIO 5 - Tertiary output
+#define KNOCK_OUTPUT_PIN     18  // GPIO 18 - Knock signal
+#elif defined(ESP32C6)
+// ESP32-C6 specific pin definitions
+// ESP32-C6 ADC1 channels are available on GPIOs 0-7
+#define ADC_PIN              1   // GPIO 1 for ADC input (RPM pot) - ADC1_CH0
+#define PRIMARY_OUTPUT_PIN   6   // GPIO 6 - Primary output (crank)
+#define SECONDARY_OUTPUT_PIN 7   // GPIO 7 - Secondary output (cam1)
+#define TERTIARY_OUTPUT_PIN  8   // GPIO 8 - Tertiary output (cam2)
+#define KNOCK_OUTPUT_PIN     9   // GPIO 9 - Knock signal
 #endif
 
 // Compression type definitions
