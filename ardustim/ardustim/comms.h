@@ -1,8 +1,8 @@
 /* vim: set syntax=c expandtab sw=2 softtabstop=2 autoindent smartindent smarttab : */
 /*
- * Arbritrary wheel pattern generator wheel definitions
+ * ArduStim - Serial communications handling
  *
- * copyright 2014 David J. Andruczyk
+ * Copyright 2014 David J. Andruczyk
  * 
  * Ardu-Stim software is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,20 +23,28 @@
  
 #include <Arduino.h>
 
-// Prototypes for serial command handlers
-void commandParser();               // Parses incoming serial commands
-void show_info_cb();                // Displays system information (not implemented here)
-void select_next_wheel_cb();        // Selects the next wheel pattern
-void select_previous_wheel_cb();    // Selects the previous wheel pattern
-void toggle_invert_primary_cb();    // Toggles inversion of primary output
-void toggle_invert_secondary_cb();  // Toggles inversion of secondary output
-void select_wheel_cb();             // Selects a specific wheel (not implemented here)
-void set_rpm_cb();                  // Sets RPM (not implemented here)
-void sweep_rpm_cb();                // Configures RPM sweep (not implemented here)
-void reverse_wheel_direction_cb();  // Reverses wheel direction (not implemented here)
+// Prototypes for command handlers
+/**
+ * @brief Parse and process incoming commands from a stream
+ * @param stream The Stream object to read from and write to
+ * @return bool True if a command was processed
+ */
+bool commandParser(Stream* stream);
 
-// General serial functions
-void serialSetup();                 // Initializes serial communication
-void display_new_wheel();           // Updates system for new wheel selection
+/**
+ * @brief Get a string representation of the board type
+ * @return const char* String with board type
+ */
+const char* getBoardTypeString();
+
+// Command callbacks
+void selectNextWheelCb();       // Selects the next wheel pattern
+void selectPreviousWheelCb();   // Selects the previous wheel pattern
+void toggleInvertPrimaryCb();   // Toggles inversion of primary output
+void toggleInvertSecondaryCb(); // Toggles inversion of secondary output
+void displayNewWheel();         // Updates system for new wheel selection
+
+// Utility functions
+uint32_t freeRam();             // Returns amount of free RAM
 
 #endif
