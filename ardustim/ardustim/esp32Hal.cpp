@@ -52,6 +52,11 @@ bool IRAM_ATTR esp32TimerIsrCallback(gptimer_handle_t timer, const gptimer_alarm
     if (esp32TimerCallback) {
         esp32TimerCallback();
     }
+    
+    extern volatile uint16_t edgeCounter;
+    extern wheels Wheels[];
+    extern struct configTable config;
+    
     if (newTimerIntervalUs != edata->alarm_value) {
         gptimer_alarm_config_t alarmConfig;
         memset(&alarmConfig, 0, sizeof(alarmConfig));
@@ -60,6 +65,7 @@ bool IRAM_ATTR esp32TimerIsrCallback(gptimer_handle_t timer, const gptimer_alarm
         alarmConfig.flags.auto_reload_on_alarm = true;
         gptimer_set_alarm_action(timer, &alarmConfig);
     }
+
     return true;
 }
 
@@ -104,6 +110,18 @@ void timerHalSetRpm(uint32_t rpm) {
     if (fInterrupt == 0) fInterrupt = 1;
     newTimerIntervalUs = 1000000ULL / fInterrupt;
     if (newTimerIntervalUs < 1) newTimerIntervalUs = 1;
+
+        // Configure new alarm
+        gptimer_alarm_config_t alarmConfig = {
+            .alarm_count = newTimerIntervalUs,
+            .reload_count = 0,
+        };
+        alarmConfig.flags.auto_reload_on_alarm = true;
+        
+        // Update timer configuration (stop, set new alarm, start)
+        gptimer_stop(timer);
+        gptimer_set_alarm_action(timer, &alarmConfig);
+        gptimer_start(timer);
 }
 
 /**
