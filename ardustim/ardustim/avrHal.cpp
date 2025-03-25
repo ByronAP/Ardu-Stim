@@ -39,6 +39,7 @@
 #define EEPROM_COMPRESSION_TYPE 15
 #define EEPROM_COMPRESSION_RPM  16
 #define EEPROM_COMPRESSION_OFFSET 18
+#define EEPROM_COMPRESSION_DYNAMIC 20
 
 // REMOVED: Global variable declarations - Now defined in common.cpp
 
@@ -185,6 +186,7 @@ void storageHalLoadConfig(struct configTable *config) {
         config->compressionType = COMPRESSION_TYPE_4CYL_4STROKE;
         config->compressionRPM = 400;
         config->compressionOffset = 0;
+        config->compressionDynamic = false; // Initialize dynamic compression
         
         // Save default configuration
         storageHalSaveConfig(config);
@@ -193,22 +195,16 @@ void storageHalLoadConfig(struct configTable *config) {
         config->version = EEPROM.read(EEPROM_VERSION);
         config->wheel = EEPROM.read(EEPROM_WHEEL);
         config->mode = EEPROM.read(EEPROM_RPM_MODE);
-        currentStatus.rpm = word(EEPROM.read(EEPROM_CURRENT_RPM), 
-                                EEPROM.read(EEPROM_CURRENT_RPM+1));
-        config->fixed_rpm = word(EEPROM.read(EEPROM_FIXED_RPM), 
-                                EEPROM.read(EEPROM_FIXED_RPM+1));
-        config->sweep_low_rpm = word(EEPROM.read(EEPROM_SWEEP_RPM_MIN), 
-                                    EEPROM.read(EEPROM_SWEEP_RPM_MIN+1));
-        config->sweep_high_rpm = word(EEPROM.read(EEPROM_SWEEP_RPM_MAX), 
-                                     EEPROM.read(EEPROM_SWEEP_RPM_MAX+1));
-        config->sweep_interval = word(EEPROM.read(EEPROM_SWEEP_RPM_INT), 
-                                     EEPROM.read(EEPROM_SWEEP_RPM_INT+1));
+        currentStatus.rpm = word(EEPROM.read(EEPROM_CURRENT_RPM), EEPROM.read(EEPROM_CURRENT_RPM+1));
+        config->fixed_rpm = word(EEPROM.read(EEPROM_FIXED_RPM), EEPROM.read(EEPROM_FIXED_RPM+1));
+        config->sweep_low_rpm = word(EEPROM.read(EEPROM_SWEEP_RPM_MIN), EEPROM.read(EEPROM_SWEEP_RPM_MIN+1));
+        config->sweep_high_rpm = word(EEPROM.read(EEPROM_SWEEP_RPM_MAX), EEPROM.read(EEPROM_SWEEP_RPM_MAX+1));
+        config->sweep_interval = word(EEPROM.read(EEPROM_SWEEP_RPM_INT), EEPROM.read(EEPROM_SWEEP_RPM_INT+1));
         config->useCompression = EEPROM.read(EEPROM_USE_COMPRESSION);
         config->compressionType = EEPROM.read(EEPROM_COMPRESSION_TYPE);
-        config->compressionRPM = word(EEPROM.read(EEPROM_COMPRESSION_RPM), 
-                                     EEPROM.read(EEPROM_COMPRESSION_RPM+1));
-        config->compressionOffset = word(EEPROM.read(EEPROM_COMPRESSION_OFFSET), 
-                                        EEPROM.read(EEPROM_COMPRESSION_OFFSET+1));
+        config->compressionRPM = word(EEPROM.read(EEPROM_COMPRESSION_RPM), EEPROM.read(EEPROM_COMPRESSION_RPM+1));
+        config->compressionOffset = word(EEPROM.read(EEPROM_COMPRESSION_OFFSET), EEPROM.read(EEPROM_COMPRESSION_OFFSET+1));
+        config->compressionDynamic = EEPROM.read(EEPROM_COMPRESSION_DYNAMIC);
 
         // Validate loaded configuration
         validateConfiguration(config);
@@ -239,6 +235,7 @@ void storageHalSaveConfig(const struct configTable *config) {
     EEPROM.update(EEPROM_COMPRESSION_RPM+1, lowByte(config->compressionRPM)); 
     EEPROM.update(EEPROM_COMPRESSION_OFFSET, highByte(config->compressionOffset));
     EEPROM.update(EEPROM_COMPRESSION_OFFSET+1, lowByte(config->compressionOffset));
+    EEPROM.update(EEPROM_COMPRESSION_DYNAMIC, config->compressionDynamic);
 }
 
 // --- ADC HAL Implementation for AVR ---

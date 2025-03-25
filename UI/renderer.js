@@ -225,8 +225,7 @@ function requestConfig()
   console.log("Requesting config");
 }
 
-function receiveConfig(data)
-{
+function receiveConfig(data) {
   console.log("Received config: " + data);
   console.log("Mode: " + data[2]);
 
@@ -235,8 +234,12 @@ function receiveConfig(data)
     console.log("TIMEOUT: No config data received");
     alert("Timeout connecting to arduino. Try uploading firmware again.");
     modalLoading.remove();
+    return;
   }
-  if(data.length != CONFIG_SIZE) { console.log("Incorrect amount of config data received"); }
+  if(data.length != CONFIG_SIZE) { 
+    console.log("Incorrect amount of config data received. Expected: " + CONFIG_SIZE + ", Got: " + data.length); 
+    return;
+  }
 
   document.getElementById("patternSelect").value = data[1];
   document.getElementById("rpmSelect").value = data[2];
@@ -244,11 +247,11 @@ function receiveConfig(data)
   document.getElementById("rpmSweepMin").value = (((data[6] & 0xff) << 8) | (data[5] & 0xff));
   document.getElementById("rpmSweepMax").value = (((data[8] & 0xff) << 8) | (data[7] & 0xff));
   document.getElementById("rpmSweepSpeed").value = (((data[10] & 0xff) << 8) | (data[9] & 0xff));
-  document.getElementById("compressionEnable").checked = data[11];
+  document.getElementById("compressionEnable").checked = data[11] ? true : false;
   document.getElementById("compressionMode").value = data[12];
   document.getElementById("compressionRPM").value = (((data[14] & 0xff) << 8) | (data[13] & 0xff));
   document.getElementById("compressionOffset").value = (((data[16] & 0xff) << 8) | (data[15] & 0xff));
-  document.getElementById("compressionDynamic").checked = data[17];
+  document.getElementById("compressionDynamic").checked = data[17] ? true : false; // Consistent index
   
   port.unpipe();
 
@@ -258,11 +261,11 @@ function receiveConfig(data)
     requestPatternList();
 
     //Enable or disabled the compression settings
-    var compressionState = document.getElementById('compressionEnable').checked
-    document.getElementById('compressionDynamic').disabled = !compressionState
-    document.getElementById('compressionMode').disabled = !compressionState
-    document.getElementById('compressionRPM').disabled = !compressionState
-    document.getElementById('compressionOffset').disabled = !compressionState
+    var compressionState = document.getElementById('compressionEnable').checked;
+    document.getElementById('compressionDynamic').disabled = !compressionState;
+    document.getElementById('compressionMode').disabled = !compressionState;
+    document.getElementById('compressionRPM').disabled = !compressionState;
+    document.getElementById('compressionOffset').disabled = !compressionState;
   }
   else
   {
@@ -275,12 +278,11 @@ function receiveConfig(data)
   }
 }
 
-function sendConfig()
-{
+function sendConfig() {
   var newRPM = parseInt(document.getElementById('fixedRPM').value);
   //console.log(`Desired RPM: ${newRPM}`);
 
-  var configBuffer = Buffer.alloc(CONFIG_SIZE); // +1 is for the 'c' command character
+  var configBuffer = Buffer.alloc(CONFIG_SIZE); // Allocate with CONFIG_SIZE
   configBuffer[0] = 0x63; // 'c' character command
   configBuffer[1] = parseInt(document.getElementById('patternSelect').value);
   configBuffer[2] = parseInt(document.getElementById('rpmSelect').value);
@@ -288,11 +290,11 @@ function sendConfig()
   configBuffer.writeUInt16LE(parseInt(document.getElementById('rpmSweepMin').value), 5);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('rpmSweepMax').value), 7);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('rpmSweepSpeed').value), 9);
-  configBuffer[11] = document.getElementById('compressionEnable').checked;
+  configBuffer[11] = document.getElementById('compressionEnable').checked ? 1 : 0;
   configBuffer[12] = parseInt(document.getElementById('compressionMode').value);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('compressionRPM').value), 13);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('compressionOffset').value), 15);
-  configBuffer[16] = document.getElementById('compressionDynamic').checked;
+  configBuffer[17] = document.getElementById('compressionDynamic').checked ? 1 : 0; // Fixed index to 17
 
   console.log("Sending full config: ", configBuffer);
 

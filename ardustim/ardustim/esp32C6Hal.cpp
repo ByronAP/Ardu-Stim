@@ -198,6 +198,7 @@ void storageHalLoadConfig(struct configTable *config) {
     config->compressionType = COMPRESSION_TYPE_4CYL_4STROKE;
     config->compressionRPM = 400;
     config->compressionOffset = 0;
+    config->compressionDynamic = false;
     
     // Save defaults
     storageHalSaveConfig(config);

@@ -112,6 +112,8 @@ void validateConfiguration(struct configTable *config) {
   if(config->compressionOffset > 359) {
     config->compressionOffset = 0;
   }
+
+  config->compressionDynamic = config->compressionDynamic ? true : false;
 }
 
 // Global wheel pattern definitions
