@@ -88,6 +88,11 @@
      uint16_t compressionRPM;    // RPM threshold for compression
      uint16_t compressionOffset; // Angle offset for compression
      bool compressionDynamic;    // Scale compression with RPM
+     bool wifiEnabled;           // Enable WiFi
+     uint8_t wifiSSID[32];       // WiFi SSID
+     uint8_t wifiPassword[32];   // WiFi password
+     bool bluetoothEnabled;      // Enable Bluetooth
+     uint32_t bluetoothPin;      // Bluetooth pairing pin
  } __attribute__ ((packed));
  extern struct configTable config;
  

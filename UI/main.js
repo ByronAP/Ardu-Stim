@@ -31,8 +31,8 @@ function createWindow () {
   });
 
   // auto hide menu bar (Win, Linux)
-  win.setMenuBarVisibility(false);
-  win.setAutoHideMenuBar(true);
+  win.setMenuBarVisibility(true); // false
+  win.setAutoHideMenuBar(false); // true
 
   // remove completely when app is packaged (Win, Linux)
   if (app.isPackaged) {

@@ -105,7 +105,7 @@ void validateConfiguration(struct configTable *config) {
     config->compressionType = COMPRESSION_TYPE_4CYL_4STROKE;
   }
   
-  if(config->compressionRPM > 1000) {
+  if(config->compressionRPM > 15000) {
     config->compressionRPM = 400;
   }
   

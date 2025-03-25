@@ -187,6 +187,12 @@ void storageHalLoadConfig(struct configTable *config) {
         config->compressionRPM = 400;
         config->compressionOffset = 0;
         config->compressionDynamic = false; // Initialize dynamic compression
+        // No wireless on AVR
+        config->wifiEnabled = false;
+        config->bluetoothEnabled = false;
+        config->bluetoothPin = 0;
+        memset(config->wifiSSID, 0, sizeof(config->wifiSSID));
+        memset(config->wifiPassword, 0, sizeof(config->wifiPassword));
         
         // Save default configuration
         storageHalSaveConfig(config);
@@ -205,6 +211,12 @@ void storageHalLoadConfig(struct configTable *config) {
         config->compressionRPM = word(EEPROM.read(EEPROM_COMPRESSION_RPM), EEPROM.read(EEPROM_COMPRESSION_RPM+1));
         config->compressionOffset = word(EEPROM.read(EEPROM_COMPRESSION_OFFSET), EEPROM.read(EEPROM_COMPRESSION_OFFSET+1));
         config->compressionDynamic = EEPROM.read(EEPROM_COMPRESSION_DYNAMIC);
+        // No wireless on AVR
+        config->wifiEnabled = false;
+        config->bluetoothEnabled = false;
+        config->bluetoothPin = 0;
+        memset(config->wifiSSID, 0, sizeof(config->wifiSSID));
+        memset(config->wifiPassword, 0, sizeof(config->wifiPassword));
 
         // Validate loaded configuration
         validateConfiguration(config);
@@ -236,6 +248,7 @@ void storageHalSaveConfig(const struct configTable *config) {
     EEPROM.update(EEPROM_COMPRESSION_OFFSET, highByte(config->compressionOffset));
     EEPROM.update(EEPROM_COMPRESSION_OFFSET+1, lowByte(config->compressionOffset));
     EEPROM.update(EEPROM_COMPRESSION_DYNAMIC, config->compressionDynamic);
+    // No wireless on AVR so no need to save those settings
 }
 
 // --- ADC HAL Implementation for AVR ---

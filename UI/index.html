@@ -29,7 +29,7 @@
 					<div id="main">
 
 					<article id="connect" class="panel ">
-                		<div style="display: none; text-align: center; padding-bottom: 15px;" id="update_text"><span class="icon major fa-cloud-arrow-up">&nbsp; </span><a href="" id="update_url" target="_blank" style="text-decoration: underline;">A new version is available. Click here to download</a></div>
+                		<div style="display: none; text-align: center; padding-bottom: 15px;" id="update_text"><span class="icon major fa-cloud-arrow-up">  </span><a href="" id="update_url" target="_blank" style="text-decoration: underline;">A new version is available. Click here to download</a></div>
 						<header><h1>Select Serial Port</h1></header>
 						Available Ports:<br />
 						<span id="serialDetectError"></span>
@@ -40,7 +40,7 @@
 							<li><input type='button' value="Upload Firmware" id="btnUploadFW" onclick="uploadFW();" /></li>
 							<li><span class="icon major" id="progressSpinner"></span></li>
 							<li><span id="burnPercent"></span></li>
-						</ul>	
+ 						</ul>
 					</article>
 
 				<!-- Live -->
@@ -68,7 +68,7 @@
 									<div class="col-3">
 										<input type="number" id="rpmSweepMin" min="0" max="10000" step="1" value="100" onChange="sendConfig()" disabled>
 									</div>
-								
+
 									<div class="col-2">
 										<input type="number" id="rpmSweepMax" min="0" max="10000" step="1" value="6000" onChange="sendConfig()" disabled>
 									</div>
@@ -121,7 +121,7 @@
 									<center><input type='button' value="Save Config" id="btnSave" onclick="saveData(true);" /><div id="saveCheck" class="icon fa-check fadeOut" style="visibility:hidden; display:inline-block;margin-left: 0.75em;"></div></center>
 								</div>
 							</div>
-					
+
 							<div class="column60" style="text-align: center;">
 								<canvas data-type="radial-gauge"
 										data-units="RPM"
@@ -134,7 +134,7 @@
 										data-animation-duration="50"
 										data-animated-value="true"
 										data-animation-rule="linear"
-								></canvas>
+ 								></canvas>
 							</div>
 						</div>
 					</article>
@@ -142,6 +142,42 @@
 						<!-- Config / Settings -->
 					<article id="config" class="panel">
 						<section>
+ 							<div class="row">
+								<h3>Wireless Configuration</h3>
+							</div>
+							<div class="row">
+								<div class="col-5 col-4-medium col-12-small">Enable WiFi: </div>
+								<div class="col-1 col-6-medium col-12-small tooltip">
+									<input type="checkbox" id="wifiEnable" onChange="sendConfig()">
+                    			</div>
+                  			</div>
+							<div class="row">
+								<div class="col-5 col-4-medium col-12-small">WiFi SSID: </div>
+								<div class="col-1 col-6-medium col-12-small tooltip">
+									<input type="text" id="wifiSSID" placeholder="WiFi Network Name" onChange="sendConfig()" disabled>
+                    			</div>
+                  			</div>
+							<div class="row">
+								<div class="col-5 col-4-medium col-12-small">WiFi Password: </div>
+								<div class="col-1 col-6-medium col-12-small tooltip">
+									<input type="password" id="wifiPassword" placeholder="WiFi Password" onChange="sendConfig()" disabled>
+                    			</div>
+                  			</div>
+							<div class="row">
+								<div class="col-5 col-4-medium col-12-small">Enable Bluetooth: </div>
+								<div class="col-1 col-6-medium col-12-small tooltip">
+									<input type="checkbox" id="bluetoothEnable" onChange="sendConfig()" disabled>
+                    			</div>
+                  			</div>
+							  <div class="row">
+								<div class="col-5 col-4-medium col-12-small">Bluetooth PIN: </div>
+								<div class="col-1 col-6-medium col-12-small tooltip">
+									<input type="text" id="bluetoothPin" placeholder="Bluetooth PIN (if required)" onChange="sendConfig()" disabled>
+                    			</div>
+                  			</div>
+
+						<hr/>
+
 							<div class="row">
 								<h3>Stim Configuration</h3>
 							</div>
@@ -164,9 +200,9 @@
 
 						<div class="row"><br/></div>
 						<div class="row" style="background: #0071b8;" id="canvas-background-colour">
-							<div id="screen" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjIiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iNTBweCIgaGVpZ2h0PSI1MHB4IiB2aWV3Qm94PSIwIDAgNTAgNTAiIHhtbDpzcGFjZT0icHJlc2VydmUiPjxnIGNsYXNzPSJncmlkIiBzdHJva2U9IiNmZmYiIG9wYWNpdHk9IjAuMiI+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjAuNSA1MC41IDAuNSAwLjUgNTAuNSAwLjUiPjwvcG9seWxpbmU+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMC41IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2UtbWl0ZXJsaW1pdD0iMiIgIHBvaW50cz0iMC41IDUuNSA1MC41IDUuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSI1LjUgMC41IDUuNSA1MC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjAuNSAxMC41IDUwLjUgMTAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIxMC41IDAuNSAxMC41IDUwLjUiPjwvcG9seWxpbmU+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMC41IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2UtbWl0ZXJsaW1pdD0iMiIgIHBvaW50cz0iMC41IDE1LjUgNTAuNSAxNS41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjE1LjUgMC41IDE1LjUgNTAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgMjAuNSA1MC41IDIwLjUiPjwvcG9seWxpbmU+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMC41IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2UtbWl0ZXJsaW1pdD0iMiIgIHBvaW50cz0iMjAuNSAwLjUgMjAuNSA1MC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjAuNSAyNS41IDUwLjUgMjUuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIyNS41IDAuNSAyNS41IDUwLjUiPjwvcG9seWxpbmU+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMC41IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2UtbWl0ZXJsaW1pdD0iMiIgIHBvaW50cz0iMC41IDMwLjUgNTAuNSAzMC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjMwLjUgMC41IDMwLjUgNTAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgMzUuNSA1MC41IDM1LjUiPjwvcG9seWxpbmU+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMC41IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2UtbWl0ZXJsaW1pdD0iMiIgIHBvaW50cz0iMzUuNSAwLjUgMzUuNSA1MC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjAuNSA0MC41IDUwLjUgNDAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSI0MC41IDAuNSA0MC41IDUwLjUiPjwvcG9seWxpbmU+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMC41IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2UtbWl0ZXJsaW1pdD0iMiIgIHBvaW50cz0iMC41IDQ1LjUgNTAuNSA0NS41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjQ1LjUgMC41IDQ1LjUgNTAuNSI+PC9wb2x5bGluZT48L2c+PC9zdmc+'); width: 100%; height: 350px;">
-								<canvas id="crank" width="420" height="300"></canvas>
-								<canvas id="cam" width="420" height="300"></canvas>
+							<div id="screen" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjIiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iNTAweCIgaGVpZ2h0PSI1MHB4IiB2aWV3Qm94PSIwIDAgNTAwIDUwIiB4bWw6c3BhY2U9InByZXNlcnZlIj48ZyBjbGFzcz0icmlkIiBzdHJva2U9IiNmZmYiIG9wYWNpdHk9IjAuMiI+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjAuNSA1MC41IDAuNSAwLjUgNTAwLjUgMC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjAuNSA1LjUgNTAwLjUgNS41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjUuNSA1MC41IDUuNSA1LjUiPjwvcG9seWxpbmU+PHBvbHlsaW5lIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMC41IiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIiBzdHJva2UtbWl0ZXJsaW1pdD0iMiIgIHBvaW50czPSIwLjUgMTAuNSA1MDAuNSAxMC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjEwLjUgNTAuNSAxMC41IDAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgMTUuNSA1MDAuNSAxNS41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjE1LjUgNTAuNSAxNS41IDAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgMjAuNSA1MDAuNSAyMC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjIwLjUgNTAuNSAyMC41IDAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgMjUuNSA1MDAuNSAyNS41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjI1LjUgNTAuNSAyNS41IDAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgMzAuNSA1MDAuNSAzMC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjMwLjUgNTAuNSAzMC41IDAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgMzUuNSA1MDAuNSAzNS41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjM1LjUgNTAuNSAzNS41IDAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgNDAuNSA1MDAuNSA0MC41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjQwLjUgNTAuNSA0MC41IDAuNSI+PC9wb2x5bGluZT48cG9seWxpbmUgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIwLjUiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiIHN0cm9rZS1taXRlcmxpbWl0PSIyIiAgcG9pbnRzPSIwLjUgNDUuNSA1MDAuNSA0NS41Ij48L3BvbHlsaW5lPjxwb2x5bGluZSBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjAuNSIgc3Ryb2tlLWxpbmVjYXA9InNxdWFyZSIgc3Ryb2tlLW1pdGVybGltaXQ9IjIiICBwb2ludHM9IjQ1LjUgNTAuNSA0NS41IDAuNSI+PC9wb2x5bGluZT48L2c+PC9zdmc+'); width: 100%; height: 350px;">
+ 								<canvas id="crank" width="420" height="300"></canvas>
+ 								<canvas id="cam" width="420" height="300"></canvas>
 							</div> 
 						</div>
                   

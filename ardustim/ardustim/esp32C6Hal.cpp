@@ -199,6 +199,11 @@ void storageHalLoadConfig(struct configTable *config) {
     config->compressionRPM = 400;
     config->compressionOffset = 0;
     config->compressionDynamic = false;
+    config->wifiEnabled = false;
+    config->bluetoothEnabled = false;
+    config->bluetoothPin = 0;
+    memset(config->wifiSSID, 0, sizeof(config->wifiSSID));
+    memset(config->wifiPassword, 0, sizeof(config->wifiPassword));
     
     // Save defaults
     storageHalSaveConfig(config);

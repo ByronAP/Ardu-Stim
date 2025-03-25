@@ -6,7 +6,7 @@ const InterByteTimeoutParser = require('@serialport/parser-inter-byte-timeout')
 const {ipcRenderer} = require("electron")
 var port = new serialport('/dev/tty-usbserial1', { autoOpen: false })
 
-const CONFIG_SIZE = 18;
+const CONFIG_SIZE = 88; // Updated for WiFi and Bluetooth settings
 const FW_VERSION = 2;
 var onConnectIntervalConfig;
 var onConnectIntervalWheels;
@@ -19,14 +19,14 @@ function refreshSerialPorts()
 {
     serialport.list().then((ports) => {
         console.log('Serial ports found: ', ports);
-      
+
         if (ports.length === 0) { document.getElementById('serialDetectError').textContent = 'No ports discovered'; }
         else { document.getElementById('serialDetectError').textContent = ''; }
-      
+
         select = document.getElementById('portsSelect');
 
         //Clear the current options
-        while (select.options.length > 0) 
+        while (select.options.length > 0)
         {
             select.remove(0); //Always 0 index (As each time an item is removed, everything shuffles up 1 place)
         }
@@ -40,10 +40,10 @@ function refreshSerialPorts()
             if(ports[i].vendorId == "2341")
             {
               //Arduino Mega device
-              if(ports[i].productId == "0010" || ports[i].productId == "0042") 
-              { 
+              if(ports[i].productId == "0010" || ports[i].productId == "0042")
+              {
                 //Mega2560
-                newOption.innerHTML = newOption.innerHTML + " (Arduino Mega)"; 
+                newOption.innerHTML = newOption.innerHTML + " (Arduino Mega)";
               }
             }
             else if(ports[i].vendorId == "16c0")
@@ -52,8 +52,8 @@ function refreshSerialPorts()
               if(ports[i].productId == "0483")
               {
                 //Teensy - Unfortunately all Teensy devices use the same device ID :(
-                newOption.innerHTML = newOption.innerHTML + " (Teensy)"; 
-              } 
+                newOption.innerHTML = newOption.innerHTML + " (Teensy)";
+              }
             }
             else if(ports[i].vendorId == "16c0")
             {
@@ -61,18 +61,18 @@ function refreshSerialPorts()
             else if(ports[i].vendorId == "1a86")
             {
               //Arduino Nano device
-              if(ports[i].productId == "7523") 
-              { 
+              if(ports[i].productId == "7523")
+              {
                 //Nano
-                newOption.innerHTML = newOption.innerHTML + " (Arduino Nano)"; 
+                newOption.innerHTML = newOption.innerHTML + " (Arduino Nano)";
               }
             }
-            
+
             select.add(newOption);
             console.log("Vendor: " + ports[i].vendorId);
             console.log("Product: " +ports[i].productId);
         var button = document.getElementById("btnConnect")
-        if(ports.length > 0) 
+        if(ports.length > 0)
         {
             select.selectedIndex = 0;
             button.disabled = false;
@@ -86,7 +86,7 @@ function refreshSerialPorts()
 function openSerialPort()
 {
     var e = document.getElementById('portsSelect');
-    
+
     console.log("Opening serial port: ", e.options[e.selectedIndex].value);
     port = new serialport(e.options[e.selectedIndex].value, { baudRate: 115200 }, function (err) {
         if (err) {
@@ -107,7 +107,7 @@ function openSerialPort()
     // Master listener for all serial actions
     // Switches the port into "flowing mode"
     /*
-    port.on('data', function (data) 
+    port.on('data', function (data)
     {
         //console.log('Data:', data)
 
@@ -159,7 +159,7 @@ function uploadFW()
     uploadPort = e.options[e.selectedIndex].value;
     console.log("Uploading to port: " + uploadPort);
 
-    //Retrieve the 
+    //Retrieve the
 
     //Begin the upload
     ipcRenderer.send("uploadFW", {
@@ -167,7 +167,7 @@ function uploadFW()
     });
 
     ipcRenderer.on("upload completed", (event, code) => {
-        burnPercent.innerHTML = "Upload to arduino completed successfully!";
+        burnPercentText.innerHTML = "Upload to arduino completed successfully!";
         spinner.classList.remove('fa-spinner');
         spinner.classList.add('fa-check');
     });
@@ -202,9 +202,9 @@ function saveData(showCheck)
     var checkmark = document.getElementById("saveCheck");
     checkmark.style.animation = 'none';
     checkmark.offsetHeight; /* trigger reflow */
-    checkmark.style.opacity = 1; 
+    checkmark.style.opacity = 1;
     checkmark.style.visibility  = "visible";
-    checkmark.style.animation = null; 
+    checkmark.style.animation = null;
   }
 }
 
@@ -229,15 +229,15 @@ function receiveConfig(data) {
   console.log("Received config: " + data);
   console.log("Mode: " + data[2]);
 
-  if(data.length == 0) 
-  { 
+  if(data.length == 0)
+  {
     console.log("TIMEOUT: No config data received");
     alert("Timeout connecting to arduino. Try uploading firmware again.");
     modalLoading.remove();
     return;
   }
-  if(data.length != CONFIG_SIZE) { 
-    console.log("Incorrect amount of config data received. Expected: " + CONFIG_SIZE + ", Got: " + data.length); 
+  if(data.length != CONFIG_SIZE) {
+    console.log("Incorrect amount of config data received. Expected: " + CONFIG_SIZE + ", Got: " + data.length);
     return;
   }
 
@@ -252,7 +252,12 @@ function receiveConfig(data) {
   document.getElementById("compressionRPM").value = (((data[14] & 0xff) << 8) | (data[13] & 0xff));
   document.getElementById("compressionOffset").value = (((data[16] & 0xff) << 8) | (data[15] & 0xff));
   document.getElementById("compressionDynamic").checked = data[17] ? true : false; // Consistent index
-  
+  document.getElementById("wifiEnable").checked = data[18] ? true : false;
+  document.getElementById("wifiSSID").value = String.fromCharCode(...data.slice(19, 51)).replace(/\0/g, ''); // Extract SSID, remove null chars
+  document.getElementById("wifiPassword").value = String.fromCharCode(...data.slice(51, 83)).replace(/\0/g, ''); // Extract password, remove null chars
+  document.getElementById("bluetoothEnable").checked = data[83] ? true : false;
+  document.getElementById("bluetoothPin").value = String.fromCharCode(...data.slice(84, 92)).replace(/\0/g, ''); // Extract Bluetooth PIN, remove null chars
+
   port.unpipe();
 
   if(data[0] == FW_VERSION)
@@ -266,6 +271,17 @@ function receiveConfig(data) {
     document.getElementById('compressionMode').disabled = !compressionState;
     document.getElementById('compressionRPM').disabled = !compressionState;
     document.getElementById('compressionOffset').disabled = !compressionState;
+
+    // Enable or disable WiFi settings based on checkbox state
+    var wifiEnabled = document.getElementById('wifiEnable').checked;
+    document.getElementById('wifiSSID').disabled = !wifiEnabled;
+    document.getElementById('wifiPassword').disabled = !wifiEnabled;
+
+     // Bluetooth is disabled for now, but you can extend this for Bluetooth settings later if needed
+     // var bluetoothEnabled = document.getElementById('bluetoothEnable').checked;
+     // document.getElementById('bluetoothPin').disabled = !bluetoothEnabled;
+
+
   }
   else
   {
@@ -295,6 +311,14 @@ function sendConfig() {
   configBuffer.writeUInt16LE(parseInt(document.getElementById('compressionRPM').value), 13);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('compressionOffset').value), 15);
   configBuffer[17] = document.getElementById('compressionDynamic').checked ? 1 : 0; // Fixed index to 17
+  configBuffer[18] = document.getElementById('wifiEnable').checked ? 1 : 0;
+  const ssidBuffer = Buffer.from(document.getElementById('wifiSSID').value.padEnd(32, '\0'), 'utf-8'); // Pad SSID to 32 bytes with nulls
+  ssidBuffer.copy(configBuffer, 19, 0, 32); // Copy SSID buffer into configBuffer starting at index 19
+  const passwordBuffer = Buffer.from(document.getElementById('wifiPassword').value.padEnd(32, '\0'), 'utf-8'); // Pad password
+  passwordBuffer.copy(configBuffer, 51, 0, 32); // Copy password, starting at index 51
+  configBuffer[83] = document.getElementById('bluetoothEnable').checked ? 1 : 0;
+  const pinBuffer = Buffer.from(document.getElementById('bluetoothPin').value.padEnd(8, '\0'), 'utf-8'); // Pad PIN to 8 bytes
+  pinBuffer.copy(configBuffer, 84, 0, 8); // Copy PIN, starting at index 84
 
   console.log("Sending full config: ", configBuffer);
 
@@ -330,12 +354,12 @@ function requestPatternList()
   port.write("L"); //Send the command to issue the pattern name list
   parser.on('data', refreshPatternList);
   //port.on('data', refreshPatternList);
-  
+
 
 }
 
 //Called back after the 'L' command has been received
-function refreshPatternList(data) 
+function refreshPatternList(data)
 {
   //If this is the first line received, the number is the total number of wheels avaialable
   if(numPatterns == 0)
@@ -350,15 +374,15 @@ function refreshPatternList(data)
   var option = document.createElement("option");
   option.text = data;
   option.value = patternOptionCounter;
-  
+
   //Add new item
   select.add(option);
 
   patternOptionCounter++;
 
   if(patternOptionCounter == numPatterns)
-  { 
-    port.unpipe(); 
+  {
+    port.unpipe();
 
     //Request the currently selected pattern
     port.write("N"); //Send the command to issue the current pattern number
@@ -387,7 +411,7 @@ function readPattern()
 {
   //Read the 0/1/2/3 sequence for the current pattern from the arduino
 
-  
+
 }
 
 var patternRow = 0;
@@ -429,7 +453,7 @@ function updatePattern()
 //Callback for the P command
 function refreshPattern(data)
 {
-  
+
   if(patternRow == 0)
   {
     //First line sent is the pattern itself
@@ -443,7 +467,7 @@ function refreshPattern(data)
     console.log(`Pattern duration: ${data}`);
     patternDegrees = parseInt(data);
     redrawGears(newPattern, patternDegrees);
-    
+
     patternRow = 0;
     port.unpipe();
 
@@ -477,7 +501,7 @@ function setRPMMode()
 {
   //Change between pot, fixed and sweep RPM modes
 
-  
+
   var newMode = parseInt(document.getElementById('rpmSelect').value);
 
   //If the new mode is fixed RPM or linear sweep, then send the RPM set values for them
@@ -507,9 +531,9 @@ function setRPMMode()
     document.getElementById("rpmSweepSpeed").disabled = true;
     document.getElementById("fixedRPM").disabled = true;
   }
-  
+
   if(initComplete) { sendConfig(); }
-  
+
 }
 
 function redrawGears(pattern, degrees)
@@ -554,7 +578,7 @@ function redrawGears(pattern, degrees)
     draw_cam_scope(pattern, depth, radius, width, line);
   }
 
-  
+
 }
 
 /*
@@ -581,7 +605,7 @@ function enableRPM()
     parser.on('data', receiveRPM);
     rpmRequestPending = false;
   }
-  
+
 }
 
 function disableRPM()
@@ -613,6 +637,28 @@ function toggleCompression()
   sendConfig();
 }
 
+function toggleWifi() {
+  var wifiEnabled = document.getElementById('wifiEnable').checked;
+  document.getElementById('wifiSSID').disabled = !wifiEnabled;
+  document.getElementById('wifiPassword').disabled = !wifiEnabled;
+
+  sendConfig();
+}
+
+function toggleBluetooth() {
+  // For now, Bluetooth is disabled in the GUI, but you can enable the PIN field if needed later
+  /*
+  var bluetoothEnabled = document.getElementById('bluetoothEnable').checked;
+  document.getElementById('bluetoothPin').disabled = !bluetoothEnabled;
+  */
+
+  // For now, just save the bluetoothEnabled state to config even though PIN is disabled
+  // (You can extend this later if you implement Bluetooth control)
+
+  sendConfig();
+}
+
+
 function updateRPM()
 {
   if(rpmRequestPending == false)
@@ -620,7 +666,7 @@ function updateRPM()
     console.log("Requesting new RPM");
     port.write("R"); //Request next RPM read
     document.gauges[0].value = currentRPM;
-    rpmRequestPending = true;
+    rpmRequestPending = false;
     //console.log(`New gauge RPM: ${document.gauges[0].value}`);
   }
 }
@@ -633,7 +679,7 @@ async function checkForUpdates()
     var url = "https://api.github.com/repos/speeduino/Ardu-Stim/releases/latest";
 
     //document.getElementById('detailsHeading').innerHTML = version;
-    
+
     fetch(url)
       .then(function (response) {
         if (response.ok) {
@@ -671,7 +717,7 @@ function liveShowHide(mutationsList, observer) {
   })
 }
 
-window.onload = function () 
+window.onload = function ()
 {
     refreshSerialPorts();
     redrawGears(toothPatterns[0]);
@@ -687,7 +733,14 @@ window.onload = function ()
       { attributes: true }
     );
 
+    // Attach event listeners for WiFi and Bluetooth checkboxes to enable/disable SSID/Password/PIN fields
+    document.getElementById('wifiEnable').addEventListener('change', toggleWifi);
+    document.getElementById('bluetoothEnable').addEventListener('change', toggleBluetooth);
+
+    // Initially disable WiFi and Bluetooth config fields
+    toggleWifi(); // Call to set initial state based on checkbox
+    toggleBluetooth(); // Call to set initial state of Bluetooth PIN field (currently disabled)
+
     usb.on('attach', refreshSerialPorts);
     usb.on('detach', refreshSerialPorts);
 };
-
