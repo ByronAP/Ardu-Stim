@@ -56,6 +56,13 @@ void validateConfiguration(struct configTable *config);
 typedef void (*timerCallbackPtr)(void);
 
 /**
+ * @brief Perform periodic HAL tasks
+ * This function handles all periodic tasks including command processing,
+ * hardware monitoring, etc.
+ */
+void halDoWork();
+
+/**
  * @brief Initialize the timer hardware
  * @param initialRpm Initial RPM value to set
  * @param callback Function to call on timer interrupt

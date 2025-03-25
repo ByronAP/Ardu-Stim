@@ -21,6 +21,7 @@
 #include "hal.h"
 #include "globals.h"
 #include "enums.h"
+#include "comms.h"
 #include <esp_timer.h>
 #include <driver/gptimer.h>
 #include <esp_adc/adc_oneshot.h>
@@ -305,4 +306,14 @@ void serialHalPrint(const char *str) {
 
 void serialHalPrintln(const char *str) { 
   Serial.println(str); 
+}
+
+/**
+ * @brief Perform periodic tasks
+ */
+void halDoWork() {
+  // Process serial commands
+  if (Serial.available() > 0) {
+    commandParser(&Serial);
+  }
 }

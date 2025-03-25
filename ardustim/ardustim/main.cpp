@@ -74,7 +74,7 @@
  void setup() {
    storageHalInit();          // Init Storage HAL
    storageHalLoadConfig(&config);   // Load config using HAL
-   serialSetup();             // Init Serial using HAL (in comms.cpp)
+   serialHalInit();             // Init Serial using HAL
    gpioHalInit();             // Init GPIO using HAL
    adcHalInit();              // Init ADC using HAL
  
@@ -178,10 +178,8 @@
      cacheNeedsRefresh = false;
    }
  
-   // Process serial commands if available
-   if (serialHalAvailable()) {
-     commandParser();
-   }
+   // Process HAL tasks (including communication)
+   halDoWork();
  
    // Handle RPM control based on mode
    updateRpmBasedOnMode(&tmpRpm);

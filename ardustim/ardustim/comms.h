@@ -23,17 +23,28 @@
  
 #include <Arduino.h>
 
-// Prototypes for serial command handlers
-void commandParser();               // Parses incoming serial commands
-void handleWheelPatternCommand();   // Handles wheel pattern command
-void handleBoardTypeCommand();      // Handles board type query
-void selectNextWheelCb();           // Selects the next wheel pattern
-void selectPreviousWheelCb();       // Selects the previous wheel pattern
-void toggleInvertPrimaryCb();       // Toggles inversion of primary output
-void toggleInvertSecondaryCb();     // Toggles inversion of secondary output
-void displayNewWheel();             // Updates system for new wheel selection
+// Prototypes for command handlers
+/**
+ * @brief Parse and process incoming commands from a stream
+ * @param stream The Stream object to read from and write to
+ * @return bool True if a command was processed
+ */
+bool commandParser(Stream* stream);
 
-// General serial functions
-void serialSetup();                 // Initializes serial communication
+/**
+ * @brief Get a string representation of the board type
+ * @return const char* String with board type
+ */
+const char* getBoardTypeString();
+
+// Command callbacks
+void selectNextWheelCb();       // Selects the next wheel pattern
+void selectPreviousWheelCb();   // Selects the previous wheel pattern
+void toggleInvertPrimaryCb();   // Toggles inversion of primary output
+void toggleInvertSecondaryCb(); // Toggles inversion of secondary output
+void displayNewWheel();         // Updates system for new wheel selection
+
+// Utility functions
+uint32_t freeRam();             // Returns amount of free RAM
 
 #endif

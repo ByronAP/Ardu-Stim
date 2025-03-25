@@ -20,6 +20,7 @@
  */
 #include "hal.h" // Include the combined HAL header
 #include "globals.h"       // For global variables like `Wheels`, `config`, `currentStatus`
+#include "comms.h"         // For `commandParser` function
 #include "enums.h"        // For enums like `PRESCALE_1`, etc.
 #include "wheelDefs.h"   // For `wheels` struct and wheel pattern definitions
 #include <avr/interrupt.h> // For AVR ISRs
@@ -299,3 +300,13 @@ uint8_t serialHalReadByte() { return Serial.read(); }
 void serialHalWriteByte(uint8_t byte) { Serial.write(byte); }
 void serialHalPrint(const char *str) { Serial.print(str); }
 void serialHalPrintln(const char *str) { Serial.println(str); }
+
+/**
+ * @brief Perform periodic tasks
+ */
+void halDoWork() {
+    // Check for serial commands
+    if (Serial.available() > 0) {
+      commandParser(&Serial);
+    }
+  }

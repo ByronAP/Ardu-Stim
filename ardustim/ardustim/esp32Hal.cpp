@@ -20,6 +20,7 @@
  */
 #include "hal.h"
 #include "globals.h"
+#include "comms.h"
 #include "enums.h"
 #include <esp_timer.h>
 #include <driver/gptimer.h>
@@ -218,3 +219,13 @@ uint8_t serialHalReadByte() { return Serial.read(); }
 void serialHalWriteByte(uint8_t byte) { Serial.write(byte); }
 void serialHalPrint(const char *str) { Serial.print(str); }
 void serialHalPrintln(const char *str) { Serial.println(str); }
+
+/**
+ * @brief Perform periodic tasks
+ */
+void halDoWork() {
+    // Process serial commands
+    if (Serial.available() > 0) {
+      commandParser(&Serial);
+    }
+  }
