@@ -1,8 +1,8 @@
 /* vim: set syntax=c expandtab sw=2 softtabstop=2 autoindent smartindent smarttab : */
 /*
- * Arbritrary wheel pattern generator wheel definitions
+ * ArduStim - Enumeration definitions
  *
- * copyright 2014 David J. Andruczyk
+ * Copyright 2014 David J. Andruczyk
  * 
  * Ardu-Stim software is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,9 @@
 #ifndef __ENUMS_H__
 #define __ENUMS_H__
  
-// Timer prescaler options for AVR
+/**
+ * Timer prescaler options for AVR
+ */
 enum {
   PRESCALE_1 = 1,
   PRESCALE_8 = 2,
@@ -31,13 +33,17 @@ enum {
   RECALC // Unused
 };
 
-// Sweep direction for LINEAR_SWEPT_RPM mode
+/**
+ * Sweep direction for LINEAR_SWEPT_RPM mode
+ */
 enum {
   DESCENDING,
   ASCENDING
 };
 
-// RPM control modes
+/**
+ * RPM control modes
+ */
 enum {
   LINEAR_SWEPT_RPM, // Sweep between low and high RPM
   FIXED_RPM,        // Fixed RPM value

@@ -34,13 +34,17 @@
  * @param index The index to retrieve
  * @return uint8_t The value at the specified index, or 0 if index is out of bounds
  */
-inline uint8_t decode_wheel_pattern(const unsigned char *pattern, uint16_t index)
+inline uint8_t decodeWheelPattern(const unsigned char *pattern, uint16_t index)
 {
     uint16_t pos = 0;
     uint16_t currentIndex = 0;
+    const uint16_t MAX_ITERATIONS = 100; // Prevent infinite loops
+    uint16_t iterations = 0;
 
-    while (1) // No arbitrary counter limit
+    while (iterations < MAX_ITERATIONS) 
     {
+        iterations++;
+        
         // Read pattern length and check for end marker
         uint8_t patternLength = pgm_read_byte(&pattern[pos]);
         if (patternLength == 0 || patternLength > 16)
@@ -68,6 +72,8 @@ inline uint8_t decode_wheel_pattern(const unsigned char *pattern, uint16_t index
         // Move to next section
         currentIndex += sectionSize;
     }
+    
+    return 0; // Safety fallback if pattern search exceeds iteration limit
 }
 
 /* Wheel patterns!

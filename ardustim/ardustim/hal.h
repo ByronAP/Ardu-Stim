@@ -1,3 +1,23 @@
+/* vim: set syntax=c expandtab sw=2 softtabstop=2 autoindent smartindent smarttab : */
+/*
+ * ArduStim - Hardware Abstraction Layer definitions
+ *
+ * Copyright 2014 David J. Andruczyk
+ * 
+ * Ardu-Stim software is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * ArduStim software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with any ArduStim software.  If not, see http://www.gnu.org/licenses/
+ *
+ */
 #ifndef __HAL_H__
 #define __HAL_H__
 
@@ -20,37 +40,139 @@
 #include <Preferences.h> // For ESP32 Storage HAL
 #endif
 
+// Forward declaration
+struct configTable; // Defined in globals.h
+
+/**
+ * @brief Validates configuration values and corrects them if needed
+ * @param config Pointer to configuration structure to validate
+ */
+void validateConfiguration(struct configTable *config);
+
 // --- Timer HAL ---
-typedef void (*timer_callback_ptr)(void);
-void timer_hal_init(uint32_t initial_rpm, timer_callback_ptr callback);
-void timer_hal_set_rpm(uint32_t rpm);
-void timer_hal_start();
-void timer_hal_stop();
+/**
+ * Function pointer type for timer callbacks
+ */
+typedef void (*timerCallbackPtr)(void);
+
+/**
+ * @brief Initialize the timer hardware
+ * @param initialRpm Initial RPM value to set
+ * @param callback Function to call on timer interrupt
+ */
+void timerHalInit(uint32_t initialRpm, timerCallbackPtr callback);
+
+/**
+ * @brief Set the timer frequency based on RPM
+ * @param rpm Target RPM
+ */
+void timerHalSetRpm(uint32_t rpm);
+
+/**
+ * @brief Start the timer
+ */
+void timerHalStart();
+
+/**
+ * @brief Stop the timer
+ */
+void timerHalStop();
+
 #if defined(__AVR__) // AVR-specific Timer HAL functions
-uint8_t get_bitshift_from_prescaler(uint8_t *prescaler_bits);
-void get_prescaler_bits(uint32_t *potential_oc_value, uint8_t *prescaler, uint8_t *bitshift);
+/**
+ * @brief Get bit shift value for a given prescaler setting
+ * @param prescalerBits Pointer to prescaler bits
+ * @return Bit shift amount
+ */
+uint8_t getBitshiftFromPrescaler(uint8_t *prescalerBits);
+
+/**
+ * @brief Determine prescaler settings based on timer value
+ * @param potentialOcValue Pointer to timer value
+ * @param prescaler Pointer to store prescaler value
+ * @param bitshift Pointer to store bit shift value
+ */
+void getPrescalerBits(uint32_t *potentialOcValue, uint8_t *prescaler, uint8_t *bitshift);
 #endif
 
 // --- Storage HAL ---
-struct configTable; // Forward declaration - configTable struct is defined in globals.h
-void storage_hal_init();
-void storage_hal_load_config(struct configTable *config);
-void storage_hal_save_config(const struct configTable *config);
+/**
+ * @brief Initialize storage system
+ */
+void storageHalInit();
+
+/**
+ * @brief Load configuration from storage
+ * @param config Pointer to configuration structure to fill
+ */
+void storageHalLoadConfig(struct configTable *config);
+
+/**
+ * @brief Save configuration to storage
+ * @param config Pointer to configuration structure to save
+ */
+void storageHalSaveConfig(const struct configTable *config);
 
 // --- ADC HAL ---
-void adc_hal_init();
-uint16_t adc_hal_read_channel(uint8_t channel);
+/**
+ * @brief Initialize analog-to-digital converter
+ */
+void adcHalInit();
+
+/**
+ * @brief Read value from ADC channel
+ * @param channel Channel to read
+ * @return ADC reading (0-1023 for AVR, 0-4095 for ESP32)
+ */
+uint16_t adcHalReadChannel(uint8_t channel);
 
 // --- GPIO HAL ---
-void gpio_hal_init();
-void gpio_hal_set_output(int pin, bool state);
+/**
+ * @brief Initialize GPIO pins
+ */
+void gpioHalInit();
+
+/**
+ * @brief Set GPIO output state
+ * @param pin Pin number to set
+ * @param state Pin state (true=HIGH, false=LOW)
+ */
+void gpioHalSetOutput(int pin, bool state);
 
 // --- Serial HAL ---
-void serial_hal_init();
-bool serial_hal_available();
-uint8_t serial_hal_read_byte();
-void serial_hal_write_byte(uint8_t byte);
-void serial_hal_print(const char *str);
-void serial_hal_println(const char *str);
+/**
+ * @brief Initialize serial communication
+ */
+void serialHalInit();
+
+/**
+ * @brief Check if serial data is available
+ * @return true if data is available
+ */
+bool serialHalAvailable();
+
+/**
+ * @brief Read a byte from serial
+ * @return Byte read from serial
+ */
+uint8_t serialHalReadByte();
+
+/**
+ * @brief Write a byte to serial
+ * @param byte Byte to write
+ */
+void serialHalWriteByte(uint8_t byte);
+
+/**
+ * @brief Print string to serial
+ * @param str String to print
+ */
+void serialHalPrint(const char *str);
+
+/**
+ * @brief Print string to serial with newline
+ * @param str String to print
+ */
+void serialHalPrintln(const char *str);
 
 #endif // __HAL_H__
