@@ -82,7 +82,6 @@ function refreshSerialPorts()
     })
 }
 
-
 function openSerialPort()
 {
     var e = document.getElementById('portsSelect');
@@ -131,6 +130,7 @@ function openSerialPort()
 function onSerialConnect()
 {
   console.log("Serial port opened");
+
   onConnectIntervalConfig = setInterval(requestConfig, 2000);
   //onConnectIntervalWheels = setInterval(requestPatternList, 3000);
 
@@ -138,7 +138,6 @@ function onSerialConnect()
   document.getElementById("link_live").href = "#live";
   document.getElementById("link_config").href = "#config";
 }
-
 
 function uploadFW()
 {
@@ -229,13 +228,13 @@ function receiveConfig(data) {
   console.log("Received config: " + data);
   console.log("Mode: " + data[2]);
 
-  if(data.length == 0)
-  {
+  if(data.length == 0) {
     console.log("TIMEOUT: No config data received");
     alert("Timeout connecting to arduino. Try uploading firmware again.");
     modalLoading.remove();
     return;
   }
+  
   if(data.length != CONFIG_SIZE) {
     console.log("Incorrect amount of config data received. Expected: " + CONFIG_SIZE + ", Got: " + data.length);
     return;
@@ -243,20 +242,38 @@ function receiveConfig(data) {
 
   document.getElementById("patternSelect").value = data[1];
   document.getElementById("rpmSelect").value = data[2];
-  document.getElementById("fixedRPM").value = (((data[4] & 0xff) << 8) | (data[3] & 0xff));
-  document.getElementById("rpmSweepMin").value = (((data[6] & 0xff) << 8) | (data[5] & 0xff));
-  document.getElementById("rpmSweepMax").value = (((data[8] & 0xff) << 8) | (data[7] & 0xff));
-  document.getElementById("rpmSweepSpeed").value = (((data[10] & 0xff) << 8) | (data[9] & 0xff));
+  document.getElementById("fixedRPM").value = data.readUInt16LE(3);
+  document.getElementById("rpmSweepMin").value = data.readUInt16LE(5);
+  document.getElementById("rpmSweepMax").value = data.readUInt16LE(7);
+  document.getElementById("rpmSweepSpeed").value = data.readUInt16LE(9);
   document.getElementById("compressionEnable").checked = data[11] ? true : false;
   document.getElementById("compressionMode").value = data[12];
-  document.getElementById("compressionRPM").value = (((data[14] & 0xff) << 8) | (data[13] & 0xff));
-  document.getElementById("compressionOffset").value = (((data[16] & 0xff) << 8) | (data[15] & 0xff));
-  document.getElementById("compressionDynamic").checked = data[17] ? true : false; // Consistent index
+  document.getElementById("compressionRPM").value = data.readUInt16LE(13);
+  document.getElementById("compressionOffset").value = data.readUInt16LE(15);
+  document.getElementById("compressionDynamic").checked = data[17] ? true : false;
+  
   document.getElementById("wifiEnable").checked = data[18] ? true : false;
-  document.getElementById("wifiSSID").value = String.fromCharCode(...data.slice(19, 51)).replace(/\0/g, ''); // Extract SSID, remove null chars
-  document.getElementById("wifiPassword").value = String.fromCharCode(...data.slice(51, 83)).replace(/\0/g, ''); // Extract password, remove null chars
+  
+  // Parse strings manually to handle null terminators correctly
+  let ssid = '';
+  for (let i = 0; i < 32; i++) {
+    if (data[19 + i] === 0) break;
+    ssid += String.fromCharCode(data[19 + i]);
+  }
+  document.getElementById("wifiSSID").value = ssid;
+  
+  let password = '';
+  for (let i = 0; i < 32; i++) {
+    if (data[51 + i] === 0) break;
+    password += String.fromCharCode(data[51 + i]);
+  }
+  document.getElementById("wifiPassword").value = password;
+  
   document.getElementById("bluetoothEnable").checked = data[83] ? true : false;
-  document.getElementById("bluetoothPin").value = String.fromCharCode(...data.slice(84, 92)).replace(/\0/g, ''); // Extract Bluetooth PIN, remove null chars
+  
+  // Parse PIN as uint32
+  const pinValue = data.readUInt32LE(84);
+  document.getElementById("bluetoothPin").value = pinValue > 0 ? pinValue.toString() : '';
 
   port.unpipe();
 
@@ -276,12 +293,6 @@ function receiveConfig(data) {
     var wifiEnabled = document.getElementById('wifiEnable').checked;
     document.getElementById('wifiSSID').disabled = !wifiEnabled;
     document.getElementById('wifiPassword').disabled = !wifiEnabled;
-
-     // Bluetooth is disabled for now, but you can extend this for Bluetooth settings later if needed
-     // var bluetoothEnabled = document.getElementById('bluetoothEnable').checked;
-     // document.getElementById('bluetoothPin').disabled = !bluetoothEnabled;
-
-
   }
   else
   {
@@ -295,33 +306,49 @@ function receiveConfig(data) {
 }
 
 function sendConfig() {
-  var newRPM = parseInt(document.getElementById('fixedRPM').value);
-  //console.log(`Desired RPM: ${newRPM}`);
-
-  var configBuffer = Buffer.alloc(CONFIG_SIZE); // Allocate with CONFIG_SIZE
+  var configBuffer = Buffer.alloc(CONFIG_SIZE);
+  
+  // Command byte is already handled separately
   configBuffer[0] = 0x63; // 'c' character command
   configBuffer[1] = parseInt(document.getElementById('patternSelect').value);
   configBuffer[2] = parseInt(document.getElementById('rpmSelect').value);
+  
+  // Fixed values with correct endianness
   configBuffer.writeUInt16LE(parseInt(document.getElementById('fixedRPM').value), 3);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('rpmSweepMin').value), 5);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('rpmSweepMax').value), 7);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('rpmSweepSpeed').value), 9);
+  
+  // Boolean and enum values
   configBuffer[11] = document.getElementById('compressionEnable').checked ? 1 : 0;
   configBuffer[12] = parseInt(document.getElementById('compressionMode').value);
+  
+  // More fixed values
   configBuffer.writeUInt16LE(parseInt(document.getElementById('compressionRPM').value), 13);
   configBuffer.writeUInt16LE(parseInt(document.getElementById('compressionOffset').value), 15);
-  configBuffer[17] = document.getElementById('compressionDynamic').checked ? 1 : 0; // Fixed index to 17
+  configBuffer[17] = document.getElementById('compressionDynamic').checked ? 1 : 0;
+  
+  // Wireless settings
   configBuffer[18] = document.getElementById('wifiEnable').checked ? 1 : 0;
-  const ssidBuffer = Buffer.from(document.getElementById('wifiSSID').value.padEnd(32, '\0'), 'utf-8'); // Pad SSID to 32 bytes with nulls
-  ssidBuffer.copy(configBuffer, 19, 0, 32); // Copy SSID buffer into configBuffer starting at index 19
-  const passwordBuffer = Buffer.from(document.getElementById('wifiPassword').value.padEnd(32, '\0'), 'utf-8'); // Pad password
-  passwordBuffer.copy(configBuffer, 51, 0, 32); // Copy password, starting at index 51
+  
+  // For strings, write them explicitly character by character
+  const ssid = document.getElementById('wifiSSID').value;
+  for (let i = 0; i < 32; i++) {
+    configBuffer[19 + i] = i < ssid.length ? ssid.charCodeAt(i) : 0;
+  }
+  
+  const password = document.getElementById('wifiPassword').value;
+  for (let i = 0; i < 32; i++) {
+    configBuffer[51 + i] = i < password.length ? password.charCodeAt(i) : 0;
+  }
+  
   configBuffer[83] = document.getElementById('bluetoothEnable').checked ? 1 : 0;
-  const pinBuffer = Buffer.from(document.getElementById('bluetoothPin').value.padEnd(8, '\0'), 'utf-8'); // Pad PIN to 8 bytes
-  pinBuffer.copy(configBuffer, 84, 0, 8); // Copy PIN, starting at index 84
-
+  
+  // Handle PIN as a numeric value
+  const pinValue = parseInt(document.getElementById('bluetoothPin').value) || 0;
+  configBuffer.writeUInt32LE(pinValue, 84);
+  
   console.log("Sending full config: ", configBuffer);
-
   port.write(configBuffer);
 }
 
@@ -353,9 +380,14 @@ function requestPatternList()
   //const parser = port.pipe(new ByteLength({length: 8}))
   port.write("L"); //Send the command to issue the pattern name list
   parser.on('data', refreshPatternList);
-  //port.on('data', refreshPatternList);
 
+}
 
+function requestWirelessSupport() {
+  port.write("w"); // Send 'w' command
+  console.log("Sending 'w' command");
+  const parser = port.pipe(new ByteLengthParser({ length: 1 })); // Expect 1 byte
+  parser.on('data', receiveWirelessSupport);
 }
 
 //Called back after the 'L' command has been received
@@ -389,6 +421,23 @@ function refreshPatternList(data)
     const parser = port.pipe(new Readline({ delimiter: '\r\n' })); //Attach the readline parser
     parser.on('data', refreshPatternNumber);
   }
+}
+
+function receiveWirelessSupport(data) {
+  console.log("Received wireless support data: ", data);
+  const support = data[0]; // Extract the support byte
+  
+  port.unpipe(); // Remove the parser to free the port
+
+  console.log(`Received wireless support: ${support}`);
+
+  // Enable/disable checkboxes based on support
+  document.getElementById('wifiEnable').disabled = !(support & 1); // WiFi supported if bit 0 is 1
+  document.getElementById('bluetoothEnable').disabled = !(support & 2); // Bluetooth supported if bit 1 is 1
+
+  // Update field states based on checkbox states and support
+  toggleWifi();
+  toggleBluetooth();
 }
 
 //Callback from the 'N' command that returns the number of the selected pattern
@@ -473,6 +522,8 @@ function refreshPattern(data)
 
     if(initComplete == false)
     {
+      requestWirelessSupport(); // Request wireless support
+
       //Drop the modal loading window
       modalLoading.remove();
       //Move to the Live tab
@@ -619,7 +670,7 @@ function disableRPM()
 
 function receiveRPM(data)
 {
-  console.log(`Received RPM: ${data}`);
+  //console.log(`Received RPM: ${data}`);
   currentRPM = parseInt(data);
   rpmRequestPending = false;
   //console.log(`New RPM: ${currentRPM}`);
@@ -637,33 +688,11 @@ function toggleCompression()
   sendConfig();
 }
 
-function toggleWifi() {
-  var wifiEnabled = document.getElementById('wifiEnable').checked;
-  document.getElementById('wifiSSID').disabled = !wifiEnabled;
-  document.getElementById('wifiPassword').disabled = !wifiEnabled;
-
-  sendConfig();
-}
-
-function toggleBluetooth() {
-  // For now, Bluetooth is disabled in the GUI, but you can enable the PIN field if needed later
-  /*
-  var bluetoothEnabled = document.getElementById('bluetoothEnable').checked;
-  document.getElementById('bluetoothPin').disabled = !bluetoothEnabled;
-  */
-
-  // For now, just save the bluetoothEnabled state to config even though PIN is disabled
-  // (You can extend this later if you implement Bluetooth control)
-
-  sendConfig();
-}
-
-
 function updateRPM()
 {
   if(rpmRequestPending == false)
   {
-    console.log("Requesting new RPM");
+    //console.log("Requesting new RPM");
     port.write("R"); //Request next RPM read
     document.gauges[0].value = currentRPM;
     rpmRequestPending = false;
@@ -825,6 +854,12 @@ function validateBluetoothPin() {
     if (pinInput.value.length > 6) {
         pinInput.value = pinInput.value.substring(0, 6);
     }
+
+    // Ensure it doesn't exceed the maximum uint32_t value
+    const maxValue = 4294967295; // Max value for uint32_t
+    if (parseInt(pinInput.value) > maxValue) {
+        pinInput.value = maxValue.toString();
+    }
     
     // If valid, send config update
     sendConfig();
@@ -903,42 +938,38 @@ function validateWirelessConfig(callerID) {
     return true;
 }
 
-// Update the toggleWifi and toggleBluetooth functions with validation
-
 function toggleWifi() {
-    var wifiEnabled = document.getElementById('wifiEnable').checked;
-    document.getElementById('wifiSSID').disabled = !wifiEnabled;
-    document.getElementById('wifiPassword').disabled = !wifiEnabled;
+  var wifiCheckbox = document.getElementById('wifiEnable');
+  var wifiEnabled = wifiCheckbox.checked && !wifiCheckbox.disabled;
+  document.getElementById('wifiSSID').disabled = !wifiEnabled;
+  document.getElementById('wifiPassword').disabled = !wifiEnabled;
 
-    // If WiFi is being enabled, disable Bluetooth
-    if (wifiEnabled) {
-        document.getElementById('bluetoothEnable').checked = false;
-        document.getElementById('bluetoothPin').disabled = true;
-    }
+  // If WiFi is being enabled, disable Bluetooth
+  if (wifiEnabled) {
+    document.getElementById('bluetoothEnable').checked = false;
+    document.getElementById('bluetoothPin').disabled = true;
+  }
 
-    // Only send config if fields are valid
-    // Pass the ID of the checkbox to indicate we're toggling
-    if (validateWirelessConfig('wifiEnable')) {
-        sendConfig();
-    }
+  if (validateWirelessConfig('wifiEnable')) {
+    sendConfig();
+  }
 }
 
 function toggleBluetooth() {
-    var bluetoothEnabled = document.getElementById('bluetoothEnable').checked;
-    document.getElementById('bluetoothPin').disabled = !bluetoothEnabled;
-    
-    // If Bluetooth is being enabled, disable WiFi
-    if (bluetoothEnabled) {
-        document.getElementById('wifiEnable').checked = false;
-        document.getElementById('wifiSSID').disabled = true;
-        document.getElementById('wifiPassword').disabled = true;
-    }
+  var bluetoothCheckbox = document.getElementById('bluetoothEnable');
+  var bluetoothEnabled = bluetoothCheckbox.checked && !bluetoothCheckbox.disabled;
+  document.getElementById('bluetoothPin').disabled = !bluetoothEnabled;
 
-    // Only send config if fields are valid
-    // Pass the ID of the checkbox to indicate we're toggling
-    if (validateWirelessConfig('bluetoothEnable')) {
-        sendConfig();
-    }
+  // If Bluetooth is being enabled, disable WiFi
+  if (bluetoothEnabled) {
+    document.getElementById('wifiEnable').checked = false;
+    document.getElementById('wifiSSID').disabled = true;
+    document.getElementById('wifiPassword').disabled = true;
+  }
+
+  if (validateWirelessConfig('bluetoothEnable')) {
+    sendConfig();
+  }
 }
 
 window.onload = function ()
