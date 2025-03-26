@@ -15,8 +15,8 @@ function createWindow () {
   windowHeight = 700;
   if(process.platform == "win32") 
   {
-    windowWidth = 1037;
-    windowHeight = 725;
+    windowWidth = 1098;
+    windowHeight = 820;
   }
 
   win = new BrowserWindow({
