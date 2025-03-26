@@ -30,6 +30,10 @@
 #include <Preferences.h>
 #include <Arduino.h>
 
+wirelessComm getWirelessComm(){
+  return WIFI_AND_BLUETOOTH;
+}
+
 // --- Timer HAL Implementation for ESP32-C6 ---
 extern wheels Wheels[]; // Defined in globals.h
 extern struct configTable config; // Defined in globals.h

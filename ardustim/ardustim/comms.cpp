@@ -228,6 +228,11 @@
        }
        break;
  
+    case (byte) 'w': // Get wireless communication type
+       stream->println(getWirelessComm());
+       cmdProcessed = true;
+       break;
+
      case (byte)'X': // Test: Switch to next wheel
        selectNextWheelCb();
        strcpy_P(buf,Wheels[config.wheel].decoder_name);

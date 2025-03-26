@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 #include <Arduino.h>
+#include "enums.h"
 
 #if defined(__AVR__)
 #include <avr/interrupt.h>
@@ -42,6 +43,11 @@
 
 // Forward declaration
 struct configTable; // Defined in globals.h
+
+/**
+ * @brief Gets if the hardware supports any wireless communication
+ */
+wirelessComm getWirelessComm();
 
 /**
  * @brief Validates configuration values and corrects them if needed

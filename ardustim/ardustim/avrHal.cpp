@@ -41,7 +41,9 @@
 #define EEPROM_COMPRESSION_OFFSET 18
 #define EEPROM_COMPRESSION_DYNAMIC 20
 
-// REMOVED: Global variable declarations - Now defined in common.cpp
+wirelessComm getWirelessComm() {
+    return NONE; // No wireless on AVR
+}
 
 // --- Timer HAL Implementation for AVR ---
 extern wheels Wheels[]; // Defined in ardustim.ino

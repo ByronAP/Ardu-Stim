@@ -22,6 +22,16 @@
 #define __ENUMS_H__
  
 /**
+ * Wireless communication options
+ */
+enum wirelessComm{
+  NONE,
+  WIFI,
+  BLUETOOTH,
+  WIFI_AND_BLUETOOTH
+};
+
+/**
  * Timer prescaler options for AVR
  */
 enum {
