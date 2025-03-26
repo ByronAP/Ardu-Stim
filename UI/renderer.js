@@ -717,6 +717,230 @@ function liveShowHide(mutationsList, observer) {
   })
 }
 
+function initCollapsibleSections() {
+    const stimHeader = document.getElementById('stim-config-header');
+    const stimContent = document.getElementById('stim-config-content');
+    const wirelessHeader = document.getElementById('wireless-config-header');
+    const wirelessContent = document.getElementById('wireless-config-content');
+    
+    if (!stimHeader || !stimContent || !wirelessHeader || !wirelessContent) {
+        console.error('Collapsible elements not found in the DOM');
+        return;
+    }
+    
+    // Initialize: Stim config open by default, wireless closed
+    stimHeader.classList.add('active');
+    wirelessHeader.classList.remove('active');
+    stimContent.style.display = 'block';
+    wirelessContent.style.display = 'none';
+    
+    // Toggle Stim Configuration
+    stimHeader.addEventListener('click', function() {
+        // If already active, close it and open the other one
+        if (stimHeader.classList.contains('active')) {
+            closeSection(stimHeader, stimContent);
+            openSection(wirelessHeader, wirelessContent);
+        } else {
+            // If not active, open this one and close the other
+            openSection(stimHeader, stimContent);
+            closeSection(wirelessHeader, wirelessContent);
+        }
+    });
+    
+    // Toggle Wireless Configuration
+    wirelessHeader.addEventListener('click', function() {
+        // If already active, close it and open the other one
+        if (wirelessHeader.classList.contains('active')) {
+            closeSection(wirelessHeader, wirelessContent);
+            openSection(stimHeader, stimContent);
+        } else {
+            // If not active, open this one and close the other
+            openSection(wirelessHeader, wirelessContent);
+            closeSection(stimHeader, stimContent);
+        }
+    });
+
+    // Update canvas layout when display style changes
+    document.getElementById('wheelDisplaySelect').addEventListener('change', function() {
+        updateCanvasLayout();
+    });
+
+    // Initial layout setup with a delay to ensure DOM is ready
+    setTimeout(function() {
+        updateCanvasLayout();
+        if (typeof resetGears === 'function') {
+            resetGears();
+        }
+    }, 200);
+}
+
+function openSection(header, content) {
+    header.classList.add('active');
+    content.style.display = 'block';
+    header.querySelector('.toggle-icon').textContent = '▼';
+    
+    // Fix for canvas sizing issues - redraw gears after opening Stim section
+    if (header.id === 'stim-config-header') {
+        // Use setTimeout to allow the DOM to update first
+        setTimeout(function() {
+            updateCanvasLayout();
+            if (typeof resetGears === 'function') {
+                resetGears();
+            }
+        }, 100);
+    }
+}
+
+function closeSection(header, content) {
+    header.classList.remove('active');
+    content.style.display = 'none';
+    header.querySelector('.toggle-icon').textContent = '▲';
+}
+
+function updateCanvasLayout() {
+    // Update the canvas container class based on display style
+    const displayStyle = document.getElementById('wheelDisplaySelect').value;
+    const screenContainer = document.getElementById('screen');
+    
+    if (screenContainer) {
+        // Remove existing mode classes
+        screenContainer.classList.remove('wheel-mode', 'scope-mode');
+        
+        // Add appropriate mode class
+        if (displayStyle === '0') {
+            screenContainer.classList.add('wheel-mode');
+        } else {
+            screenContainer.classList.add('scope-mode');
+        }
+    }
+}
+
+// Validate the Bluetooth PIN (allow only digits)
+function validateBluetoothPin() {
+    const pinInput = document.getElementById('bluetoothPin');
+    // Remove any non-numeric characters
+    pinInput.value = pinInput.value.replace(/\D/g, '');
+    
+    // Enforce maximum length of 6 digits
+    if (pinInput.value.length > 6) {
+        pinInput.value = pinInput.value.substring(0, 6);
+    }
+    
+    // If valid, send config update
+    sendConfig();
+}
+
+// Save wireless configuration
+function saveWirelessConfig() {
+    // First validate all fields, passing the button ID to enable strict validation
+    if (validateWirelessConfig('btnSaveWireless')) {
+        // Send the save command to perform EEPROM burn
+        saveData(false);
+        
+        // Show the checkmark animation for the wireless section
+        var checkmark = document.getElementById("saveWirelessCheck");
+        checkmark.style.animation = 'none';
+        checkmark.offsetHeight; /* trigger reflow */
+        checkmark.style.visibility = "visible";
+        checkmark.style.opacity = 1;
+        
+        // Restart the animation
+        setTimeout(function() {
+            checkmark.style.animation = null;
+        }, 10);
+    }
+}
+
+// Validate wireless configuration
+function validateWirelessConfig(callerID) {
+    // Get the ID of the element that triggered the validation
+    // This helps us determine if we're toggling or explicitly saving
+    // If WiFi is enabled, validate SSID and password
+    if (document.getElementById('wifiEnable').checked) {
+        const ssid = document.getElementById('wifiSSID').value;
+        const password = document.getElementById('wifiPassword').value;
+        
+        // Only check for empty SSID when explicitly saving (not during toggle)
+        // This allows switching between Bluetooth and WiFi without alerts
+        if (ssid.trim() === '' && this.id === 'btnSaveWireless') {
+            alert('WiFi SSID cannot be empty');
+            return false;
+        }
+        
+        // Enforce max length (also enforced by maxlength attribute)
+        if (ssid.length > 32) {
+            alert('WiFi SSID must be 32 characters or less');
+            document.getElementById('wifiSSID').value = ssid.substring(0, 32);
+            return false;
+        }
+        
+        if (password.length > 32) {
+            alert('WiFi password must be 32 characters or less');
+            document.getElementById('wifiPassword').value = password.substring(0, 32);
+            return false;
+        }
+    }
+    
+    // If Bluetooth is enabled, validate PIN
+    if (document.getElementById('bluetoothEnable').checked) {
+        const pin = document.getElementById('bluetoothPin').value;
+        
+        // Only allow digits and enforce max length
+        if (!/^\d+$/.test(pin) && pin.trim() !== '') {
+            alert('Bluetooth PIN must contain only digits');
+            // The validateBluetoothPin function will already clean this up
+            validateBluetoothPin();
+            return false;
+        }
+        
+        if (pin.length > 6) {
+            alert('Bluetooth PIN must be 6 digits or less');
+            document.getElementById('bluetoothPin').value = pin.substring(0, 6);
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// Update the toggleWifi and toggleBluetooth functions with validation
+
+function toggleWifi() {
+    var wifiEnabled = document.getElementById('wifiEnable').checked;
+    document.getElementById('wifiSSID').disabled = !wifiEnabled;
+    document.getElementById('wifiPassword').disabled = !wifiEnabled;
+
+    // If WiFi is being enabled, disable Bluetooth
+    if (wifiEnabled) {
+        document.getElementById('bluetoothEnable').checked = false;
+        document.getElementById('bluetoothPin').disabled = true;
+    }
+
+    // Only send config if fields are valid
+    // Pass the ID of the checkbox to indicate we're toggling
+    if (validateWirelessConfig('wifiEnable')) {
+        sendConfig();
+    }
+}
+
+function toggleBluetooth() {
+    var bluetoothEnabled = document.getElementById('bluetoothEnable').checked;
+    document.getElementById('bluetoothPin').disabled = !bluetoothEnabled;
+    
+    // If Bluetooth is being enabled, disable WiFi
+    if (bluetoothEnabled) {
+        document.getElementById('wifiEnable').checked = false;
+        document.getElementById('wifiSSID').disabled = true;
+        document.getElementById('wifiPassword').disabled = true;
+    }
+
+    // Only send config if fields are valid
+    // Pass the ID of the checkbox to indicate we're toggling
+    if (validateWirelessConfig('bluetoothEnable')) {
+        sendConfig();
+    }
+}
+
 window.onload = function ()
 {
     refreshSerialPorts();
@@ -733,13 +957,29 @@ window.onload = function ()
       { attributes: true }
     );
 
-    // Attach event listeners for WiFi and Bluetooth checkboxes to enable/disable SSID/Password/PIN fields
+    // Attach event listeners for WiFi and Bluetooth checkboxes
     document.getElementById('wifiEnable').addEventListener('change', toggleWifi);
     document.getElementById('bluetoothEnable').addEventListener('change', toggleBluetooth);
 
+    // Add validation for input fields
+    document.getElementById('bluetoothPin').addEventListener('input', validateBluetoothPin);
+    document.getElementById('wifiSSID').addEventListener('input', function() {
+        if (this.value.length > 32) {
+            this.value = this.value.substring(0, 32);
+        }
+    });
+    document.getElementById('wifiPassword').addEventListener('input', function() {
+        if (this.value.length > 32) {
+            this.value = this.value.substring(0, 32);
+        }
+    });
+
     // Initially disable WiFi and Bluetooth config fields
     toggleWifi(); // Call to set initial state based on checkbox
-    toggleBluetooth(); // Call to set initial state of Bluetooth PIN field (currently disabled)
+    toggleBluetooth(); // Call to set initial state of Bluetooth PIN field
+
+    // Initialize collapsible sections
+    initCollapsibleSections();
 
     usb.on('attach', refreshSerialPorts);
     usb.on('detach', refreshSerialPorts);

@@ -1536,3 +1536,104 @@ input, select, textarea {
 		animation: spin 2s linear infinite;
 		display: inline-block;
 	}
+
+/* Collapsible sections styling */
+.collapsible-section {
+    margin-bottom: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.collapsible-header {
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 10px 15px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.collapsible-header h3 {
+    margin: 0;
+}
+
+.collapsible-content {
+    padding: 15px;
+    background-color: rgba(0, 0, 0, 0.05);
+    overflow: hidden; /* Ensures content doesn't overflow */
+}
+
+.toggle-icon {
+    font-size: 16px;
+    transition: transform 0.3s;
+}
+
+/* Active state styling */
+.collapsible-header.active .toggle-icon {
+    transform: rotate(0deg);
+}
+
+.collapsible-header:not(.active) .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+/* Canvas container styling */
+.canvas-container {
+    width: 100%;
+    min-height: 320px;
+    padding: 10px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Center vertically */
+}
+
+.canvas-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%; /* Take full height of container */
+}
+
+/* Wheel mode: canvases side by side */
+.wheel-mode .canvas-wrapper {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.wheel-mode #crank, 
+.wheel-mode #cam {
+    max-width: 50%;
+    height: auto;
+}
+
+/* Scope mode: canvases stacked with cam above crank */
+.scope-mode .canvas-wrapper {
+    display: flex;
+    flex-direction: column-reverse; /* This puts cam above crank */
+    align-items: center;
+}
+
+.scope-mode #crank,
+.scope-mode #cam {
+    width: 100%;
+    max-width: 840px;
+    height: auto;
+    margin-bottom: 10px;
+}
+
+/* Responsive behavior for small screens */
+@media (max-width: 800px) {
+    .wheel-mode .canvas-wrapper {
+        flex-direction: column;
+    }
+    
+    .wheel-mode #crank,
+    .wheel-mode #cam {
+        max-width: 100%;
+        margin-bottom: 10px;
+    }
+}

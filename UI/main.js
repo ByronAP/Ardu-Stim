@@ -31,8 +31,8 @@ function createWindow () {
   });
 
   // auto hide menu bar (Win, Linux)
-  win.setMenuBarVisibility(true); // false
-  win.setAutoHideMenuBar(false); // true
+  win.setMenuBarVisibility(false);
+  win.setAutoHideMenuBar(true);
 
   // remove completely when app is packaged (Win, Linux)
   if (app.isPackaged) {
@@ -212,6 +212,3 @@ ipcMain.on('uploadFW', (e, args) => {
 
   child.on('close', (code) => { onChildExit(code, 0); });
 });
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
