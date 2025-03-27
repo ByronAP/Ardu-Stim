@@ -30,8 +30,8 @@
 #include <Preferences.h>
 #include <Arduino.h>
 
-wirelessComm getWirelessComm(){
-  return WIFI_AND_BLUETOOTH;
+wirelessComm getWirelessSupportType(){
+  return WIFI;
 }
 
 // --- Timer HAL Implementation for ESP32-C6 ---

@@ -27,7 +27,7 @@
 #include <Preferences.h>
 #include <Arduino.h> // Needed for digitalWrite, analogRead, Serial, HIGH, LOW, pinMode
 
-wirelessComm getWirelessComm(){
+wirelessComm getWirelessSupportType(){
   return WIFI_AND_BLUETOOTH;
 }
 

@@ -47,7 +47,7 @@ struct configTable; // Defined in globals.h
 /**
  * @brief Gets if the hardware supports any wireless communication
  */
-wirelessComm getWirelessComm();
+wirelessComm getWirelessSupportType();
 
 /**
  * @brief Validates configuration values and corrects them if needed

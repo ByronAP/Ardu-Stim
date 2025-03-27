@@ -41,7 +41,7 @@
 #define EEPROM_COMPRESSION_OFFSET 18
 #define EEPROM_COMPRESSION_DYNAMIC 20
 
-wirelessComm getWirelessComm() {
+wirelessComm getWirelessSupportType() {
     return NONE; // No wireless on AVR
 }
 
