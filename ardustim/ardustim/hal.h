@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <Arduino.h>
 #include "enums.h"
+#include "wifiHal.h"
 
 #if defined(__AVR__)
 #include <avr/interrupt.h>

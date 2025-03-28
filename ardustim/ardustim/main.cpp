@@ -88,6 +88,8 @@
  
    sei(); // Enable interrupts after setup
    resetNewOCR1A(currentStatus.rpm); // Set initial RPM, using HAL Timer functions internally
+
+   wifiHalInit(); // Initialize WiFi
  }
  
  /**

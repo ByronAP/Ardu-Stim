@@ -257,4 +257,7 @@ void halDoWork() {
     if (Serial.available() > 0) {
       commandParser(&Serial);
     }
+
+    // Process WiFi tasks
+  wifiHalDoWork();
   }
