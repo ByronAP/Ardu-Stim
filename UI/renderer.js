@@ -1,23 +1,35 @@
-const serialport = require('serialport')
+const { SerialPort } = require('serialport')
 const usb = require('usb').usb;
-const Readline = require('@serialport/parser-readline')
-const ByteLengthParser = require('@serialport/parser-byte-length')
-const InterByteTimeoutParser = require('@serialport/parser-inter-byte-timeout')
+const { ReadlineParser } = require('@serialport/parser-readline')
+const { ByteLengthParser } = require('@serialport/parser-byte-length')
+const { InterByteTimeoutParser } = require('@serialport/parser-inter-byte-timeout')
 const {ipcRenderer} = require("electron")
-var port = new serialport('/dev/tty-usbserial1', { autoOpen: false })
+var port = null;
 
 const CONFIG_SIZE = 88; // Updated for WiFi and Bluetooth settings
 const FW_VERSION = 2;
 var onConnectIntervalConfig;
 var onConnectIntervalWheels;
-var isConnected=false;
+var isConnected = false;
 var currentRPM = 0;
 var rpmRequestPending = false;
 var initComplete = false;
 
-function refreshSerialPorts()
-{
-    serialport.list().then((ports) => {
+// Global variables for wireless connections
+var wirelessDevices = {
+  wifi: [],
+  ble: []
+};
+var isWirelessConnected = false;
+var wirelessConnectionType = null;
+
+// Buffer for partial wireless data
+var wirelessBuffer = "";
+var wirelessDataExpectedLength = 0;
+var wirelessDataCallback = null;
+
+function refreshSerialPorts() {
+    SerialPort.list().then((ports) => {
         console.log('Serial ports found: ', ports);
 
         if (ports.length === 0) { document.getElementById('serialDetectError').textContent = 'No ports discovered'; }
@@ -25,45 +37,34 @@ function refreshSerialPorts()
 
         select = document.getElementById('portsSelect');
 
-        //Clear the current options
-        while (select.options.length > 0)
-        {
-            select.remove(0); //Always 0 index (As each time an item is removed, everything shuffles up 1 place)
+        // Clear the current options
+        while (select.options.length > 0) {
+            select.remove(0);
         }
 
-        //Load the current serial values
-        for(var i = 0; i < ports.length; i++)
-        {
+        // Load the current serial values
+        for(var i = 0; i < ports.length; i++) {
             var newOption = document.createElement('option');
             newOption.value = ports[i].path;
             newOption.innerHTML = ports[i].path;
-            if(ports[i].vendorId == "2341")
-            {
-              //Arduino Mega device
-              if(ports[i].productId == "0010" || ports[i].productId == "0042")
-              {
-                //Mega2560
+            if(ports[i].vendorId == "2341") {
+              // Arduino Mega device
+              if(ports[i].productId == "0010" || ports[i].productId == "0042") {
+                // Mega2560
                 newOption.innerHTML = newOption.innerHTML + " (Arduino Mega)";
               }
             }
-            else if(ports[i].vendorId == "16c0")
-            {
-              //Teensy
-              if(ports[i].productId == "0483")
-              {
-                //Teensy - Unfortunately all Teensy devices use the same device ID :(
+            else if(ports[i].vendorId == "16c0") {
+              // Teensy
+              if(ports[i].productId == "0483") {
+                // Teensy - Unfortunately all Teensy devices use the same device ID :(
                 newOption.innerHTML = newOption.innerHTML + " (Teensy)";
               }
             }
-            else if(ports[i].vendorId == "16c0")
-            {
-            }
-            else if(ports[i].vendorId == "1a86")
-            {
-              //Arduino Nano device
-              if(ports[i].productId == "7523")
-              {
-                //Nano
+            else if(ports[i].vendorId == "1a86") {
+              // Arduino Nano device
+              if(ports[i].productId == "7523") {
+                // Nano
                 newOption.innerHTML = newOption.innerHTML + " (Arduino Nano)";
               }
             }
@@ -72,8 +73,7 @@ function refreshSerialPorts()
             console.log("Vendor: " + ports[i].vendorId);
             console.log("Product: " +ports[i].productId);
         var button = document.getElementById("btnConnect")
-        if(ports.length > 0)
-        {
+        if(ports.length > 0) {
             select.selectedIndex = 0;
             button.disabled = false;
         }
@@ -82,12 +82,25 @@ function refreshSerialPorts()
     })
 }
 
-function openSerialPort()
-{
+function openSerialPort() {
+    // If we have a wireless connection active, disconnect first
+    if (isWirelessConnected) {
+        disconnectWireless();
+        // The function will be called again after disconnection
+        return;
+    }
+
     var e = document.getElementById('portsSelect');
+    if (!e.options[e.selectedIndex]) {
+        window.alert("Please select a serial port first.");
+        return;
+    }
 
     console.log("Opening serial port: ", e.options[e.selectedIndex].value);
-    port = new serialport(e.options[e.selectedIndex].value, { baudRate: 115200 }, function (err) {
+    port = new SerialPort({
+        path: e.options[e.selectedIndex].value,
+        baudRate: 115200
+    }, function (err) {
         if (err) {
           window.alert(`Error while opening serial port: ${err.message}`);
           throw err;
@@ -96,71 +109,54 @@ function openSerialPort()
         //Drop the modal dialog until connection is complete
         modalLoading.init(true);
         initComplete = false;
-      });
+        isConnected = true;
+    });
 
-    //Update the patterns downdown list
+    // Update the patterns downdown list
     port.on('open', onSerialConnect);
-    //port.on('data', onData);
-    //refreshPatternList();
+    
+    port.on('close', function() {
+        console.log("Serial port closed");
+        isConnected = false;
+        document.getElementById("link_live").removeAttribute("href");
+        document.getElementById("link_config").removeAttribute("href");
+    });
 
-    // Master listener for all serial actions
-    // Switches the port into "flowing mode"
-    /*
-    port.on('data', function (data)
-    {
-        //console.log('Data:', data)
-
-        if(data.length < 2) { return; }
-        var knockValue = data[0];
-        var threshold = data[1];
-
-        liveChart.config.data.datasets[0].data.push({
-            x: Date.now(),
-            y: threshold
-            });
-        liveChart.config.data.datasets[1].data.push({
-            x: Date.now(),
-            y: knockValue
-            });
-    })
-    */
-
+    // If there was an error, update connected state
+    port.on('error', function(err) {
+        console.error("Serial port error:", err);
+        isConnected = false;
+    });
 }
 
-function onSerialConnect()
-{
+function onSerialConnect() {
   console.log("Serial port opened");
 
   onConnectIntervalConfig = setInterval(requestConfig, 2000);
-  //onConnectIntervalWheels = setInterval(requestPatternList, 3000);
 
-  //Activate the links
+  // Activate the links
   document.getElementById("link_live").href = "#live";
   document.getElementById("link_config").href = "#config";
 }
 
-function uploadFW()
-{
-
-    //Set the status and spinner
+function uploadFW() {
+    // Set the status and spinner
     var spinner = document.getElementById('progressSpinner');
     var burnPercentText = document.getElementById('burnPercent');
     burnPercentText.innerHTML = "Preparing to burn firmware...";
 
-    //Remove any old icons
+    // Remove any old icons
     spinner.classList.remove('fa-pause');
     spinner.classList.remove('fa-check');
     spinner.classList.remove('fa-times');
     spinner.classList.add('fa-spinner');
 
-    //Retrieve the select serial port
+    // Retrieve the select serial port
     var e = document.getElementById('portsSelect');
     uploadPort = e.options[e.selectedIndex].value;
     console.log("Uploading to port: " + uploadPort);
 
-    //Retrieve the
-
-    //Begin the upload
+    // Begin the upload
     ipcRenderer.send("uploadFW", {
       port: uploadPort,
     });
@@ -181,47 +177,54 @@ function uploadFW()
 
     ipcRenderer.on("upload error", (event, code) => {
         burnPercentText.innerHTML = "Upload to arduino failed";
-        //Mke the terminal/error section visible
+        // Make the terminal/error section visible
         spinner.classList.remove('fa-spinner');
         spinner.classList.add('fa-times');
     });
-
-
 }
 
-function saveData(showCheck)
-{
-  //Request the arduino save the current config
-  port.write("s"); //Send the command to perform EEPROM burn
-  console.log("Sending 's' command to save config ")
-
-  //Check if we redo the checkmark animation
-  if(showCheck)
-  {
+function saveData(showCheck) {
+  if (isWirelessConnected) {
+    sendWirelessCommand('s');
+  } else if (port && port.isOpen) {
+    port.write("s");
+  } else {
+    console.error('No active connection to save data');
+    return;
+  }
+  
+  // Show checkmark animation if requested
+  if (showCheck) {
     var checkmark = document.getElementById("saveCheck");
     checkmark.style.animation = 'none';
     checkmark.offsetHeight; /* trigger reflow */
     checkmark.style.opacity = 1;
-    checkmark.style.visibility  = "visible";
+    checkmark.style.visibility = "visible";
     checkmark.style.animation = null;
   }
 }
 
-function requestConfig()
-{
-  //Clear the interval
-  clearInterval(onConnectIntervalConfig);
-
-  //Attach the readline parser
-
-  //Attach the version check parser
-  parser = port.pipe(new InterByteTimeoutParser({ maxBufferSize: CONFIG_SIZE, interval: 1500 }));
-  parser.on('data', receiveConfig);
-
-
-  //Request the config from the arduino
-  port.write("C");
-  console.log("Requesting config");
+function requestConfig() {
+  // Clear interval regardless of connection type
+  if (onConnectIntervalConfig) {
+    clearInterval(onConnectIntervalConfig);
+  }
+  
+  if (isWirelessConnected) {
+    console.log("Requesting config via wireless");
+    wirelessDataExpectedLength = CONFIG_SIZE;
+    wirelessDataCallback = receiveConfig;
+    
+    // Send the command
+    sendWirelessCommand('C');
+  } else if (port && port.isOpen) {
+    console.log("Requesting config via serial");
+    parser = port.pipe(new InterByteTimeoutParser({ maxBufferSize: CONFIG_SIZE, interval: 1500 }));
+    parser.on('data', receiveConfig);
+    port.write("C");
+  } else {
+    console.error('No active connection to request config');
+  }
 }
 
 function receiveConfig(data) {
@@ -275,14 +278,15 @@ function receiveConfig(data) {
   const pinValue = data.readUInt32LE(84);
   document.getElementById("bluetoothPin").value = pinValue > 0 ? pinValue.toString() : '';
 
-  port.unpipe();
+  if (port && port.pipe) {
+    port.unpipe();
+  }
 
-  if(data[0] == FW_VERSION)
-  {
+  if(data[0] == FW_VERSION) {
     setRPMMode();
     requestPatternList();
 
-    //Enable or disabled the compression settings
+    // Enable or disabled the compression settings
     var compressionState = document.getElementById('compressionEnable').checked;
     document.getElementById('compressionDynamic').disabled = !compressionState;
     document.getElementById('compressionMode').disabled = !compressionState;
@@ -294,11 +298,10 @@ function receiveConfig(data) {
     document.getElementById('wifiSSID').disabled = !wifiEnabled;
     document.getElementById('wifiPassword').disabled = !wifiEnabled;
   }
-  else
-  {
+  else {
     console.log("Firmware version mismatch. Expected: ", FW_VERSION, " Received: ", data[0]);
     alert("Firmware version mismatch. Please press the 'Upload Firmware' button to update the firmware.");
-    //Drop the modal loading window
+    // Drop the modal loading window
     modalLoading.remove();
     window.location.hash = '#connect';
     initComplete = false;
@@ -306,9 +309,10 @@ function receiveConfig(data) {
 }
 
 function sendConfig() {
+  // Create configuration buffer
   var configBuffer = Buffer.alloc(CONFIG_SIZE);
   
-  // Command byte is already handled separately
+  // Command byte is already handled separately for wireless
   configBuffer[0] = 0x63; // 'c' character command
   configBuffer[1] = parseInt(document.getElementById('patternSelect').value);
   configBuffer[2] = parseInt(document.getElementById('rpmSelect').value);
@@ -348,54 +352,66 @@ function sendConfig() {
   const pinValue = parseInt(document.getElementById('bluetoothPin').value) || 0;
   configBuffer.writeUInt32LE(pinValue, 84);
   
-  console.log("Sending full config: ", configBuffer);
-  port.write(configBuffer);
+  console.log("Sending config");
+  
+  // If wireless connection is active, use that instead of serial
+  if (isWirelessConnected) {
+    sendWirelessCommand('c', configBuffer.slice(1)); // Skip the command byte as it's sent separately
+  } else if (port && port.isOpen) {
+    port.write(configBuffer);
+  } else {
+    console.error('No active connection to send config');
+  }
+}
+
+function requestPatternList() {
+  // Clear interval regardless of connection type
+  if (onConnectIntervalWheels) {
+    clearInterval(onConnectIntervalWheels);
+  }
+  
+  // Clear the existing list
+  var select = document.getElementById('patternSelect');
+  while(select.options.length > 0) {
+    select.remove(0);
+  }
+  patternOptionCounter = 0;
+  numPatterns = 0;
+  
+  if (isWirelessConnected) {
+    console.log("Requesting pattern list via wireless");
+    // Reset patternRow for proper pattern parsing
+    patternRow = 0;
+    
+    // Request the number of wheels
+    sendWirelessCommand('n');
+    
+    // Request the pattern list
+    sendWirelessCommand('L');
+  } else if (port && port.isOpen) {
+    console.log("Requesting pattern list via serial");
+    const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
+    port.write("n");
+    port.write("L");
+    parser.on('data', refreshPatternList);
+  } else {
+    console.error('No active connection to request pattern list');
+  }
+}
+
+function requestWirelessSupport() {
+  if (isWirelessConnected) {
+    sendWirelessCommand('w');
+  } else if (port && port.isOpen) {
+    port.write("w");
+  }
 }
 
 var patternOptionCounter = 0;
 var numPatterns = 0;
-function requestPatternList()
-{
-  //Clear the interval
-  clearInterval(onConnectIntervalWheels);
-
-  //Attach the readline parser
-  const parser = port.pipe(new Readline({ delimiter: '\r\n' }));
-
-  //Clear the existing list
-  var select = document.getElementById('patternSelect')
-  while(select.options.length > 0)
-  {
-      select.remove(0); //Always 0 index (As each time an item is removed, everything shuffles up 1 place)
-  }
-  patternOptionCounter = 0;
-  numPatterns = 0;
-
-  //Request the number of wheels
-  console.log("Requesting number of wheels");
-  port.write("n");
-
-  //Read the available patterns from the arduino
-  console.log("Sending 'L' command");
-  //const parser = port.pipe(new ByteLength({length: 8}))
-  port.write("L"); //Send the command to issue the pattern name list
-  parser.on('data', refreshPatternList);
-
-}
-
-function requestWirelessSupport() {
-  port.write("w"); // Send 'w' command
-  console.log("Sending 'w' command");
-  const parser = port.pipe(new ByteLengthParser({ length: 1 })); // Expect 1 byte
-  parser.on('data', receiveWirelessSupport);
-}
-
-//Called back after the 'L' command has been received
-function refreshPatternList(data)
-{
-  //If this is the first line received, the number is the total number of wheels avaialable
-  if(numPatterns == 0)
-  {
+function refreshPatternList(data) {
+  // If this is the first line received, the number is the total number of wheels avaialable
+  if(numPatterns == 0) {
     numPatterns = parseInt(data);
     console.log(`Number of wheels: ${numPatterns}`);
     return;
@@ -407,18 +423,17 @@ function refreshPatternList(data)
   option.text = data;
   option.value = patternOptionCounter;
 
-  //Add new item
+  // Add new item
   select.add(option);
 
   patternOptionCounter++;
 
-  if(patternOptionCounter == numPatterns)
-  {
+  if(patternOptionCounter == numPatterns) {
     port.unpipe();
 
-    //Request the currently selected pattern
-    port.write("N"); //Send the command to issue the current pattern number
-    const parser = port.pipe(new Readline({ delimiter: '\r\n' })); //Attach the readline parser
+    // Request the currently selected pattern
+    port.write("N"); // Send the command to issue the current pattern number
+    const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' })); // Attach the readline parser
     parser.on('data', refreshPatternNumber);
   }
 }
@@ -440,27 +455,19 @@ function receiveWirelessSupport(data) {
   toggleBluetooth();
 }
 
-//Callback from the 'N' command that returns the number of the selected pattern
-function refreshPatternNumber(data)
-{
+function refreshPatternNumber(data) {
   var select = document.getElementById('patternSelect')
   var patternID = parseInt(data);
   port.unpipe();
 
-  //Temporarily disable the onchange event while we set the initial value
+  // Temporarily disable the onchange event while we set the initial value
   var changeFunction = select.onchange;
+  select.onchange = null;
   select.value = patternID;
   select.onchange = changeFunction;
 
   console.log("Currently selected Pattern: " + patternID);
   updatePatternQueue();
-}
-
-function readPattern()
-{
-  //Read the 0/1/2/3 sequence for the current pattern from the arduino
-
-
 }
 
 var patternRow = 0;
@@ -469,8 +476,7 @@ var patternDegrees;
 
 var nextPatternID = null;
 var currentPatternID = null;
-function updatePatternQueue()
-{
+function updatePatternQueue() {
   nextPatternID = document.getElementById('patternSelect').value;
 
   if (currentPatternID === null) {
@@ -478,41 +484,48 @@ function updatePatternQueue()
   }
 }
 
-function updatePattern()
-{
+function updatePattern() {
   currentPatternID = nextPatternID;
   nextPatternID = null;
-
-  const parser = port.pipe(new Readline({ delimiter: '\r\n' }));
-  console.log(`Sending 'S' command with pattern ${currentPatternID}`);
-
-  var buffer = Buffer.alloc(2);
-  buffer[0] = 0x53; // Ascii 'S'
-  buffer[1] = parseInt(currentPatternID);
-  port.write(buffer); //Send the new pattern ID
-
-  //Send the command to save the pattern to EEPROM
-  saveData(false);
-
-  //Request the new pattern
-  port.write("P"); //Send the command to read the new pattern out
-  parser.on('data', refreshPattern);
+  
+  if (isWirelessConnected) {
+    console.log(`Sending 'S' command with pattern ${currentPatternID}`);
+    
+    // Send the pattern selection command
+    sendWirelessCommand('S', String.fromCharCode(parseInt(currentPatternID)));
+    
+    // Save to EEPROM
+    saveData(false);
+    
+    // Request the new pattern
+    patternRow = 0; // Reset pattern row counter
+    sendWirelessCommand('P');
+  } else if (port && port.isOpen) {
+    const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
+    
+    var buffer = Buffer.alloc(2);
+    buffer[0] = 0x53; // Ascii 'S'
+    buffer[1] = parseInt(currentPatternID);
+    port.write(buffer);
+    
+    saveData(false);
+    
+    port.write("P");
+    parser.on('data', refreshPattern);
+  } else {
+    console.error('No active connection to update pattern');
+  }
 }
 
-//Callback for the P command
-function refreshPattern(data)
-{
-
-  if(patternRow == 0)
-  {
-    //First line sent is the pattern itself
+function refreshPattern(data) {
+  if(patternRow == 0) {
+    // First line sent is the pattern itself
     console.log(`Received pattern: ${data}`);
     newPattern = data.split(",");
     patternRow++;
   }
-  else
-  {
-    //2nd line received is the number of degrees the pattern runs over (360 or 720 usually)
+  else {
+    // 2nd line received is the number of degrees the pattern runs over (360 or 720 usually)
     console.log(`Pattern duration: ${data}`);
     patternDegrees = parseInt(data);
     redrawGears(newPattern, patternDegrees);
@@ -520,13 +533,12 @@ function refreshPattern(data)
     patternRow = 0;
     port.unpipe();
 
-    if(initComplete == false)
-    {
+    if(initComplete == false) {
       requestWirelessSupport(); // Request wireless support
 
-      //Drop the modal loading window
+      // Drop the modal loading window
       modalLoading.remove();
-      //Move to the Live tab
+      // Move to the Live tab
       window.location.hash = '#live';
       initComplete = true;
     }
@@ -537,54 +549,11 @@ function refreshPattern(data)
     else {
       currentPatternID = null;
     }
-
   }
-
 }
 
-//Simply redraw the gear pattern using the existing details (Used when the draw style is changed)
-function resetGears()
-{
+function resetGears() {
   redrawGears(newPattern, patternDegrees);
-}
-
-function setRPMMode()
-{
-  //Change between pot, fixed and sweep RPM modes
-
-
-  var newMode = parseInt(document.getElementById('rpmSelect').value);
-
-  //If the new mode is fixed RPM or linear sweep, then send the RPM set values for them
-  if(newMode == 0)
-  {
-    //Update the text box enablement
-    document.getElementById("rpmSweepMin").disabled = false;
-    document.getElementById("rpmSweepMax").disabled = false;
-    document.getElementById("rpmSweepSpeed").disabled = false;
-    document.getElementById("fixedRPM").disabled = true;
-  }
-  else if (newMode == 1)
-  {
-    //Update the text box enablement
-    document.getElementById("fixedRPM").disabled = false;
-    document.getElementById("rpmSweepMin").disabled = true;
-    document.getElementById("rpmSweepMax").disabled = true;
-    document.getElementById("rpmSweepSpeed").disabled = true;
-  }
-  else if(newMode == 2)
-  {
-    //Pot mode
-
-    //Update the text box enablement
-    document.getElementById("rpmSweepMin").disabled = true;
-    document.getElementById("rpmSweepMax").disabled = true;
-    document.getElementById("rpmSweepSpeed").disabled = true;
-    document.getElementById("fixedRPM").disabled = true;
-  }
-
-  if(initComplete) { sendConfig(); }
-
 }
 
 function redrawGears(pattern, degrees)
@@ -629,7 +598,7 @@ function redrawGears(pattern, degrees)
     draw_cam_scope(pattern, depth, radius, width, line);
   }
 
-
+  
 }
 
 /*
@@ -656,28 +625,69 @@ function enableRPM()
     parser.on('data', receiveRPM);
     rpmRequestPending = false;
   }
-
+  
 }
 
-function disableRPM()
-{
+function setRPMMode() {
+  var newMode = parseInt(document.getElementById('rpmSelect').value);
+
+  // If the new mode is fixed RPM or linear sweep, then send the RPM set values for them
+  if(newMode == 0) {
+    // Update the text box enablement
+    document.getElementById("rpmSweepMin").disabled = false;
+    document.getElementById("rpmSweepMax").disabled = false;
+    document.getElementById("rpmSweepSpeed").disabled = false;
+    document.getElementById("fixedRPM").disabled = true;
+  }
+  else if (newMode == 1) {
+    // Update the text box enablement
+    document.getElementById("fixedRPM").disabled = false;
+    document.getElementById("rpmSweepMin").disabled = true;
+    document.getElementById("rpmSweepMax").disabled = true;
+    document.getElementById("rpmSweepSpeed").disabled = true;
+  }
+  else if(newMode == 2) {
+    // Pot mode
+
+    // Update the text box enablement
+    document.getElementById("rpmSweepMin").disabled = true;
+    document.getElementById("rpmSweepMax").disabled = true;
+    document.getElementById("rpmSweepSpeed").disabled = true;
+    document.getElementById("fixedRPM").disabled = true;
+  }
+
+  if(initComplete) { sendConfig(); }
+}
+
+var RPMInterval = 0;
+function enableRPM() {
+  console.log("Enabling RPM reads");
+  if(RPMInterval == 0) {
+    RPMInterval = setInterval(updateRPM, 100);
+    if (port && port.pipe) {
+      const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
+      parser.on('data', receiveRPM);
+    }
+    rpmRequestPending = false;
+  }
+}
+
+function disableRPM() {
   console.log("Deactivating RPM reads");
   clearInterval(RPMInterval);
   RPMInterval = 0;
-  port.unpipe();
-  port.read(); //Flush the port
+  if (port && port.pipe) {
+    port.unpipe();
+    port.read(); // Flush the port
+  }
 }
 
-function receiveRPM(data)
-{
-  //console.log(`Received RPM: ${data}`);
+function receiveRPM(data) {
   currentRPM = parseInt(data);
   rpmRequestPending = false;
-  //console.log(`New RPM: ${currentRPM}`);
 }
 
-function toggleCompression()
-{
+function toggleCompression() {
   var state = document.getElementById('compressionEnable').checked
 
   document.getElementById('compressionDynamic').disabled = !state
@@ -688,26 +698,29 @@ function toggleCompression()
   sendConfig();
 }
 
-function updateRPM()
-{
-  if(rpmRequestPending == false)
-  {
-    //console.log("Requesting new RPM");
-    port.write("R"); //Request next RPM read
+function updateRPM() {
+  if (rpmRequestPending) {
+    return;
+  }
+  
+  if (isWirelessConnected) {
+    sendWirelessCommand('R');
     document.gauges[0].value = currentRPM;
-    rpmRequestPending = false;
-    //console.log(`New gauge RPM: ${document.gauges[0].value}`);
+    rpmRequestPending = true;
+  } else if (port && port.isOpen) {
+    port.write("R");
+    document.gauges[0].value = currentRPM;
+    rpmRequestPending = true;
+  } else {
+    console.error('No active connection to update RPM');
   }
 }
 
-async function checkForUpdates()
-{
+async function checkForUpdates() {
     let current_version = await ipcRenderer.invoke("getAppVersion");
     document.getElementById('versionSpan').innerHTML = current_version;
 
     var url = "https://api.github.com/repos/speeduino/Ardu-Stim/releases/latest";
-
-    //document.getElementById('detailsHeading').innerHTML = version;
 
     fetch(url)
       .then(function (response) {
@@ -720,9 +733,8 @@ async function checkForUpdates()
         latest_version = json.tag_name.substring(0);
 
         var semver = require('semver');
-        if(semver.gt(latest_version, current_version))
-        {
-            //New version has been found
+        if(semver.gt(latest_version, current_version)) {
+            // New version has been found
             document.getElementById('update_url').setAttribute("href", json.html_url);
             document.getElementById('update_text').style.display = "block";
         }
@@ -730,7 +742,6 @@ async function checkForUpdates()
       .catch(function (err) {
         console.log("Error checking for updates.", err);
       });
-
 }
 
 function liveShowHide(mutationsList, observer) {
@@ -972,21 +983,640 @@ function toggleBluetooth() {
   }
 }
 
+// Wireless functionality
+
+// Toggle between serial and wireless UI
+function toggleConnectionUI() {
+  const serialContainer = document.getElementById('serialUIContainer');
+  const wirelessContainer = document.getElementById('wirelessUIContainer');
+  const toggleButton = document.getElementById('btnSwitchToWireless');
+  
+  console.log("Toggle button clicked");
+  
+  // Ensure elements exist
+  if (!serialContainer || !wirelessContainer) {
+    console.error("UI containers not found! Check HTML structure.");
+    alert("Error: UI elements not found. Please check the console for details.");
+    return;
+  }
+  
+  // Check if we need to disconnect from current connection first
+  if (isWirelessConnected) {
+    console.log("Disconnecting from wireless before switching");
+    disconnectWireless();
+    return; // Will continue after disconnection
+  } else if (isConnected) {
+    console.log("Disconnecting from serial before switching");
+    disconnectSerial();
+    return; // Will continue after disconnection
+  }
+  
+  // Check which UI is currently visible
+  const isWirelessVisible = window.getComputedStyle(wirelessContainer).display !== 'none';
+  
+  if (isWirelessVisible) {
+    // Switch to Serial UI
+    console.log("Switching to Serial UI");
+    serialContainer.style.display = 'block';
+    wirelessContainer.style.display = 'none';
+    toggleButton.value = "Switch to Wireless";
+    refreshSerialPorts();
+  } else {
+    // Switch to Wireless UI
+    console.log("Switching to Wireless UI");
+    serialContainer.style.display = 'none';
+    wirelessContainer.style.display = 'block';
+    toggleButton.value = "Switch to Serial";
+    refreshWirelessDevices();
+  }
+}
+
+// Refresh the list of wireless devices
+function refreshWirelessDevices() {
+	// Initialize if undefined
+  if (!wirelessDevices) {
+    wirelessDevices = { wifi: [], ble: [] };
+  }
+  const spinner = document.getElementById('wirelessProgressSpinner');
+  const statusText = document.getElementById('wirelessStatus');
+  const errorDiv = document.getElementById('wirelessError');
+  
+  // Get selected wireless type (wifi or ble)
+  const radioButton = document.querySelector('input[name="wirelessType"]:checked');
+  if (!radioButton) {
+    console.error("No wireless type selected");
+    return;
+  }
+  const selectedType = radioButton.value;
+  
+  // Clear error message
+  if (errorDiv) {
+    errorDiv.style.display = 'none';
+  }
+  
+  // Show spinner
+  if (spinner) {
+    spinner.classList.remove('fa-check', 'fa-times');
+    spinner.classList.add('fa-spinner');
+  }
+  
+  if (statusText) {
+    statusText.textContent = `Scanning for ${selectedType} devices...`;
+  }
+  
+  // Clear existing devices of the selected type
+  wirelessDevices[selectedType] = [];
+  updateWirelessDevicesList();
+  
+  // Request discovery from main process
+  ipcRenderer.send('start-wireless-discovery', selectedType);
+  
+  // Set a timeout to hide spinner after 10 seconds if no devices found
+  setTimeout(() => {
+    if (wirelessDevices[selectedType].length === 0 && spinner && statusText) {
+      spinner.classList.remove('fa-spinner');
+      statusText.textContent = `No ${selectedType} devices found`;
+    }
+  }, 10000);
+}
+
+// Connect to selected wireless device
+function connectWirelessDevice() {
+  const select = document.getElementById('wirelessSelect');
+  const spinner = document.getElementById('wirelessProgressSpinner');
+  const statusText = document.getElementById('wirelessStatus');
+  const errorDiv = document.getElementById('wirelessError');
+  
+  // Clear error message
+  if (errorDiv) {
+    errorDiv.style.display = 'none';
+  }
+  
+  if (!select || select.selectedIndex === -1) {
+    if (errorDiv) {
+      errorDiv.textContent = 'Please select a device';
+      errorDiv.style.display = 'block';
+    }
+    return;
+  }
+  
+  const deviceId = select.options[select.selectedIndex].value;
+  const radioButton = document.querySelector('input[name="wirelessType"]:checked');
+  if (!radioButton) {
+    console.error("No wireless type selected");
+    return;
+  }
+  const selectedType = radioButton.value;
+  
+  // Show spinner
+  if (spinner) {
+    spinner.classList.remove('fa-check', 'fa-times');
+    spinner.classList.add('fa-spinner');
+  }
+  
+  if (statusText) {
+    statusText.textContent = 'Connecting...';
+  }
+  
+  if (selectedType === 'wifi') {
+    const device = wirelessDevices.wifi.find(d => d.address === deviceId);
+    if (device) {
+      ipcRenderer.send('connect-wifi', device);
+    } else if (errorDiv && statusText) {
+      errorDiv.textContent = 'Selected device not found';
+      errorDiv.style.display = 'block';
+      spinner.classList.remove('fa-spinner');
+      statusText.textContent = 'Connection failed';
+    }
+  } else if (selectedType === 'ble') {
+    ipcRenderer.send('connect-ble', deviceId);
+  }
+}
+
+// Update the wireless devices dropdown
+function updateWirelessDevicesList() {
+  const select = document.getElementById('wirelessSelect');
+  const spinner = document.getElementById('wirelessProgressSpinner');
+  const statusText = document.getElementById('wirelessStatus');
+  
+  if (!select) {
+    console.error("Wireless device select element not found");
+    return;
+  }
+  
+  // Get the selected wireless type
+  const radioButton = document.querySelector('input[name="wirelessType"]:checked');
+  if (!radioButton) {
+    console.error("No wireless type selected");
+    return;
+  }
+  const selectedType = radioButton.value;
+  
+  // Clear existing options
+  while (select.options.length > 0) {
+    select.remove(0);
+  }
+  
+  // Add devices based on selected type
+  if (selectedType === 'wifi') {
+    wirelessDevices.wifi.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device.address;
+      option.textContent = `${device.name} (${device.address})`;
+      select.add(option);
+    });
+  } else if (selectedType === 'ble') {
+    wirelessDevices.ble.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device.id;
+      option.textContent = `${device.name} (Signal: ${device.rssi} dBm)`;
+      select.add(option);
+    });
+  }
+  
+  // Update UI
+  if (select.options.length > 0) {
+    if (spinner) {
+      spinner.classList.remove('fa-spinner');
+    }
+    if (statusText) {
+      statusText.textContent = `Found ${select.options.length} ${selectedType} devices`;
+    }
+    
+    const connectButton = document.getElementById('btnWirelessConnect');
+    if (connectButton) {
+      connectButton.disabled = false;
+    }
+  } else {
+    // If scanning is done but no devices found
+    if (statusText && !statusText.textContent.includes('Scanning')) {
+      if (spinner) {
+        spinner.classList.remove('fa-spinner');
+      }
+      statusText.textContent = `No ${selectedType} devices found`;
+    }
+    
+    const connectButton = document.getElementById('btnWirelessConnect');
+    if (connectButton) {
+      connectButton.disabled = true;
+    }
+  }
+}
+
+// Setup wireless type listeners (WiFi/BLE radio buttons)
+function setupWirelessTypeListeners() {
+  const radioButtons = document.querySelectorAll('input[name="wirelessType"]');
+  if (radioButtons.length === 0) {
+    console.error("Wireless type radio buttons not found!");
+    return;
+  }
+  
+  radioButtons.forEach(radio => {
+    radio.addEventListener('change', () => {
+      // Clear the device list and update for the selected type
+      updateWirelessDevicesList();
+      refreshWirelessDevices();
+    });
+  });
+}
+
+// Disconnect from wireless connection
+function disconnectWireless() {
+  if (!isWirelessConnected) return;
+  
+  const spinner = document.getElementById('wirelessProgressSpinner');
+  const statusText = document.getElementById('wirelessStatus');
+  
+  // Show disconnecting status
+  if (spinner) {
+    spinner.classList.remove('fa-check', 'fa-times');
+    spinner.classList.add('fa-spinner');
+  }
+  
+  if (statusText) {
+    statusText.textContent = 'Disconnecting...';
+  }
+  
+  // Send disconnect message to main process
+  ipcRenderer.send('disconnect-wireless');
+  
+  // UI will be updated in the wireless-disconnected event handler
+}
+
+// Disconnect from serial connection
+function disconnectSerial() {
+  if (!isConnected || !port || !port.isOpen) return;
+  
+  console.log("Closing serial port connection");
+  
+  // Disable the RPM updates if active
+  if (RPMInterval !== 0) {
+    disableRPM();
+  }
+  
+  // Close the port
+  port.close(err => {
+    if (err) {
+      console.error('Error closing serial port:', err);
+    }
+    
+    // Update connection state
+    isConnected = false;
+    
+    // Disable UI navigation
+    document.getElementById("link_live").removeAttribute("href");
+    document.getElementById("link_config").removeAttribute("href");
+    
+    // Toggle to wireless UI
+    const serialContainer = document.getElementById('serialUIContainer');
+    const wirelessContainer = document.getElementById('wirelessUIContainer');
+    const toggleButton = document.getElementById('btnSwitchToWireless');
+    
+    if (serialContainer && wirelessContainer && toggleButton) {
+      serialContainer.style.display = 'none';
+      wirelessContainer.style.display = 'block';
+      toggleButton.value = "Switch to Serial";
+      refreshWirelessDevices();
+    }
+  });
+}
+
+// Send a command over wireless connection
+function sendWirelessCommand(command, additionalData = null) {
+  if (!isWirelessConnected) {
+    console.error('Not connected to any wireless device');
+    return;
+  }
+  
+  let dataToSend;
+  
+  if (additionalData) {
+    if (typeof additionalData === 'string') {
+      dataToSend = command + additionalData;
+    } else if (Buffer.isBuffer(additionalData)) {
+      const buffer = Buffer.alloc(additionalData.length + 1);
+      buffer[0] = command.charCodeAt(0);
+      additionalData.copy(buffer, 1);
+      dataToSend = buffer;
+    }
+  } else {
+    dataToSend = command;
+  }
+  
+  ipcRenderer.send('send-wireless-data', dataToSend);
+}
+
+// Process data received from wireless connection
+function processWirelessData(data) {
+  // Append to buffer
+  wirelessBuffer += data;
+  
+  // If we're expecting a specific data length (e.g., for config)
+  if (wirelessDataExpectedLength > 0) {
+    if (wirelessBuffer.length >= wirelessDataExpectedLength) {
+      try {
+        // Convert string to buffer for processing
+        const buffer = Buffer.from(wirelessBuffer.substring(0, wirelessDataExpectedLength), 'binary');
+        
+        // Call the callback - important to use a temporary reference since
+        // the callback might set up a new callback
+        const tempCallback = wirelessDataCallback;
+        
+        // Reset parser state
+        const tempLength = wirelessDataExpectedLength;
+        wirelessDataExpectedLength = 0;
+        wirelessDataCallback = null;
+        wirelessBuffer = wirelessBuffer.substring(tempLength);
+        
+        // Call the callback
+        if (tempCallback) {
+          tempCallback(buffer);
+        }
+      } catch (error) {
+        console.error('Error processing wireless data:', error);
+        // Reset parser state on error
+        wirelessDataExpectedLength = 0;
+        wirelessDataCallback = null;
+        wirelessBuffer = "";
+      }
+    }
+  } else {
+    // Process line-based data
+    const lines = wirelessBuffer.split(/[\r\n]+/);
+    
+    // If the last line is incomplete, keep it in the buffer
+    if (lines.length > 0 && !wirelessBuffer.endsWith('\n') && !wirelessBuffer.endsWith('\r')) {
+      wirelessBuffer = lines.pop();
+    } else {
+      wirelessBuffer = "";
+    }
+    
+    // Process each complete line
+    lines.forEach(line => {
+      if (line.trim().length > 0) {
+        processWirelessLine(line);
+      }
+    });
+  }
+}
+
+// Process incoming data line from wireless connection
+function processWirelessLine(line) {
+  console.log('Wireless data line:', line);
+  
+  // Process wheel pattern list
+  if (numPatterns === 0 && !isNaN(parseInt(line))) {
+    numPatterns = parseInt(line);
+    console.log(`Number of wheel patterns: ${numPatterns}`);
+    return;
+  }
+  
+  if (numPatterns > 0 && patternOptionCounter < numPatterns) {
+    console.log(`Adding wheel pattern option #${patternOptionCounter}: ${line}`);
+    var select = document.getElementById('patternSelect');
+    var option = document.createElement("option");
+    option.text = line;
+    option.value = patternOptionCounter;
+    select.add(option);
+    
+    patternOptionCounter++;
+    
+    if (patternOptionCounter >= numPatterns) {
+      console.log("All wheel patterns received");
+      // Request the currently selected pattern
+      sendWirelessCommand('N');
+    }
+    return;
+  }
+  
+  // Process pattern number
+  if (numPatterns > 0 && patternOptionCounter >= numPatterns) {
+    var patternID = parseInt(line);
+    var select = document.getElementById('patternSelect');
+    
+    // Temporarily disable the onchange event while we set the initial value
+    var changeFunction = select.onchange;
+    select.onchange = null;
+    select.value = patternID;
+    select.onchange = changeFunction;
+    
+    console.log("Currently selected Pattern: " + patternID);
+    updatePatternQueue();
+    
+    // Reset counters
+    patternOptionCounter = 0;
+    numPatterns = 0;
+    return;
+  }
+  
+  // Process RPM updates
+  if (rpmRequestPending && !isNaN(parseInt(line))) {
+    currentRPM = parseInt(line);
+    rpmRequestPending = false;
+    return;
+  }
+  
+  // Process wheel pattern data (for visualization)
+  if (patternRow === 0 && line.includes(',')) {
+    console.log(`Received pattern: ${line}`);
+    newPattern = line.split(",");
+    patternRow++;
+    return;
+  }
+  
+  if (patternRow === 1 && !isNaN(parseInt(line))) {
+    console.log(`Pattern duration: ${line}`);
+    patternDegrees = parseInt(line);
+    redrawGears(newPattern, patternDegrees);
+    
+    patternRow = 0;
+    
+    if (initComplete === false) {
+      // If this is initial setup
+      requestWirelessSupport();
+      
+      // Drop the modal loading window
+      if (typeof modalLoading !== 'undefined') {
+        modalLoading.remove();
+      }
+      
+      // Move to Live tab
+      window.location.hash = '#live';
+      initComplete = true;
+    }
+    
+    if (nextPatternID !== null) {
+      updatePattern();
+    } else {
+      currentPatternID = null;
+    }
+    return;
+  }
+}
+
+// Setup IPC event listeners for wireless
+function setupWirelessIPCListeners() {
+  // Update wireless device lists
+  ipcRenderer.on('update-wireless-devices', (event, devices) => {
+    wirelessDevices = devices;
+    updateWirelessDevicesList();
+  });
+  
+  // Handle wireless connection status
+  ipcRenderer.on('wireless-connected', (event, result) => {
+    const spinner = document.getElementById('wirelessProgressSpinner');
+    const statusText = document.getElementById('wirelessStatus');
+    const errorDiv = document.getElementById('wirelessError');
+    
+    if (result.success) {
+      if (spinner) {
+        spinner.classList.remove('fa-spinner');
+        spinner.classList.add('fa-check');
+      }
+      
+      if (statusText) {
+        statusText.textContent = `Connected to ${result.details.name}`;
+      }
+      
+      isWirelessConnected = true;
+      wirelessConnectionType = result.type;
+      
+      // Enable UI navigation
+      document.getElementById("link_live").href = "#live";
+      document.getElementById("link_config").href = "#config";
+      
+      // Drop the modal loading window
+      if (typeof modalLoading !== 'undefined') {
+        modalLoading.init(true);
+      }
+      
+      // Request the configuration after connection
+      wirelessDataExpectedLength = CONFIG_SIZE;
+      wirelessDataCallback = receiveConfig;
+      sendWirelessCommand('C');
+    } else {
+      if (spinner) {
+        spinner.classList.remove('fa-spinner');
+        spinner.classList.add('fa-times');
+      }
+      
+      if (statusText) {
+        statusText.textContent = `Connection failed`;
+      }
+      
+      if (errorDiv) {
+        errorDiv.textContent = result.error;
+        errorDiv.style.display = 'block';
+      }
+      
+      isWirelessConnected = false;
+    }
+  });
+  
+  // Handle wireless disconnection
+  ipcRenderer.on('wireless-disconnected', () => {
+    const statusText = document.getElementById('wirelessStatus');
+    const spinner = document.getElementById('wirelessProgressSpinner');
+    
+    if (spinner) {
+      spinner.classList.remove('fa-spinner', 'fa-check');
+    }
+    
+    if (statusText) {
+      statusText.textContent = 'Disconnected';
+    }
+    
+    isWirelessConnected = false;
+    
+    // Disable UI navigation
+    document.getElementById("link_live").removeAttribute("href");
+    document.getElementById("link_config").removeAttribute("href");
+    
+    // Check if we need to toggle the UI
+    const serialContainer = document.getElementById('serialUIContainer');
+    const wirelessContainer = document.getElementById('wirelessUIContainer');
+    const toggleButton = document.getElementById('btnSwitchToWireless');
+    
+    if (serialContainer && wirelessContainer && toggleButton) {
+      // If this was triggered by toggling to serial, switch UI
+      if (window.getComputedStyle(wirelessContainer).display !== 'none') {
+        serialContainer.style.display = 'block';
+        wirelessContainer.style.display = 'none';
+        toggleButton.value = "Switch to Wireless";
+        refreshSerialPorts();
+      }
+    }
+  });
+  
+  // Handle wireless data
+  ipcRenderer.on('wireless-data', (event, data) => {
+    processWirelessData(data);
+  });
+  
+  // Handle wireless errors
+  ipcRenderer.on('wireless-error', (event, error) => {
+    console.error('Wireless error:', error);
+    
+    const errorDiv = document.getElementById('wirelessError');
+    if (errorDiv) {
+      errorDiv.textContent = error;
+      errorDiv.style.display = 'block';
+    }
+    
+    const spinner = document.getElementById('wirelessProgressSpinner');
+    if (spinner) {
+      spinner.classList.remove('fa-spinner');
+      spinner.classList.add('fa-times');
+    }
+    
+    const statusText = document.getElementById('wirelessStatus');
+    if (statusText) {
+      statusText.textContent = 'Error';
+    }
+  });
+  
+  // BLE state change notifications
+  ipcRenderer.on('ble-state-change', (event, state) => {
+    if (state !== 'poweredOn') {
+      const errorDiv = document.getElementById('wirelessError');
+      if (errorDiv) {
+        errorDiv.textContent = `Bluetooth is ${state}. Please enable Bluetooth on your computer.`;
+        errorDiv.style.display = 'block';
+      }
+    }
+  });
+}
+
 window.onload = function ()
 {
     refreshSerialPorts();
     redrawGears(toothPatterns[0]);
     window.location.hash = '#connect';
-    //window.location.hash = '#live';
     checkForUpdates();
-    //animateGauges();
 
-    //Enable and disabled retrieval of RPM when viewing live panel
+    // Enable and disabled retrieval of RPM when viewing live panel
     const liveShowHideObserver = new MutationObserver(liveShowHide);
     liveShowHideObserver.observe(
       document.getElementById('live'),
       { attributes: true }
     );
+
+    // Initialize wireless UI components
+    const wirelessContainer = document.getElementById('wirelessUIContainer');
+    if (wirelessContainer) {
+      // Initially ensure wireless UI is hidden
+      wirelessContainer.style.display = 'none';
+      
+      // Setup wireless type listeners (WiFi/BLE radio buttons)
+      setupWirelessTypeListeners();
+      
+      // Setup IPC listeners for wireless events
+      setupWirelessIPCListeners();
+      
+      console.log("Wireless UI initialized");
+    } else {
+      console.error("Wireless UI container not found in DOM!");
+    }
 
     // Attach event listeners for WiFi and Bluetooth checkboxes
     document.getElementById('wifiEnable').addEventListener('change', toggleWifi);
@@ -1006,8 +1636,8 @@ window.onload = function ()
     });
 
     // Initially disable WiFi and Bluetooth config fields
-    toggleWifi(); // Call to set initial state based on checkbox
-    toggleBluetooth(); // Call to set initial state of Bluetooth PIN field
+    toggleWifi();
+    toggleBluetooth();
 
     // Initialize collapsible sections
     initCollapsibleSections();

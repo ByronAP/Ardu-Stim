@@ -28,20 +28,60 @@
 				<!-- Main -->
 					<div id="main">
 
-					<article id="connect" class="panel ">
-                		<div style="display: none; text-align: center; padding-bottom: 15px;" id="update_text"><span class="icon major fa-cloud-arrow-up">  </span><a href="" id="update_url" target="_blank" style="text-decoration: underline;">A new version is available. Click here to download</a></div>
-						<header><h1>Select Serial Port</h1></header>
-						Available Ports:<br />
-						<span id="serialDetectError"></span>
-						<select name="ports" class="select" id="portsSelect" size="10" width="25"></select>
-						<ul class="actions">
-							<li><input type='button' value="Refresh" onclick="refreshSerialPorts();" /></li>
-							<li><input type='button' value="Connect" id="btnConnect" onclick="openSerialPort();" /></li>
-							<li><input type='button' value="Upload Firmware" id="btnUploadFW" onclick="uploadFW();" /></li>
-							<li><span class="icon major" id="progressSpinner"></span></li>
-							<li><span id="burnPercent"></span></li>
- 						</ul>
-					</article>
+<article id="connect" class="panel ">
+    <div style="display: none; text-align: center; padding-bottom: 15px;" id="update_text">
+        <span class="icon major fa-cloud-arrow-up"></span>
+        <a href="" id="update_url" target="_blank" style="text-decoration: underline;">A new version is available. Click here to download</a>
+    </div>
+    
+    <!-- Serial UI Container -->
+    <div id="serialUIContainer">
+        <header><h1>Select Serial Port</h1></header>
+        Available Ports:<br />
+        <span id="serialDetectError"></span>
+        <select name="ports" class="select" id="portsSelect" size="10" width="25"></select>
+        
+        <ul class="actions">
+            <li><input type='button' value="Refresh" onclick="refreshSerialPorts();" /></li>
+            <li><input type='button' value="Connect" id="btnConnect" onclick="openSerialPort();" /></li>
+            <li><input type='button' value="Upload Firmware" id="btnUploadFW" onclick="uploadFW();" /></li>
+            <li><span class="icon major" id="progressSpinner"></span></li>
+            <li><span id="burnPercent"></span></li>
+        </ul>
+    </div>
+    
+    <!-- Wireless UI Container (initially hidden) -->
+    <div id="wirelessUIContainer" style="display:none;">
+        <header><h1>Select Wireless Device</h1></header>
+        <div id="wirelessError" style="display: none; color: red; margin-bottom: 10px;"></div>
+        
+        <div class="row">
+            <div class="col-6">
+                <input type="radio" id="wifiToggle" name="wirelessType" value="wifi" checked>
+                <label for="wifiToggle">WiFi (mDNS)</label>
+            </div>
+            <div class="col-6">
+                <input type="radio" id="bleToggle" name="wirelessType" value="ble">
+                <label for="bleToggle">Bluetooth (BLE)</label>
+            </div>
+        </div>
+        
+        Available Devices:<br />
+        <span id="wirelessDetectStatus"></span>
+        <select name="wirelessDevices" class="select" id="wirelessSelect" size="10" width="25"></select>
+        <ul class="actions">
+            <li><input type='button' value="Refresh" onclick="refreshWirelessDevices();" /></li>
+            <li><input type='button' value="Connect" id="btnWirelessConnect" onclick="connectWirelessDevice();" /></li>
+            <li><span class="icon major" id="wirelessProgressSpinner"></span></li>
+            <li><span id="wirelessStatus"></span></li>
+        </ul>
+    </div>
+    
+    <!-- Toggle Button (always visible) -->
+    <ul class="actions">
+        <li><input type='button' value="Switch to Wireless" id="btnSwitchToWireless" onclick="toggleConnectionUI();" /></li>
+    </ul>
+</article>
 
 				<!-- Live -->
 					<article id="live" class="panel">

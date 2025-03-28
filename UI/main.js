@@ -1,6 +1,18 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const {spawn} = require('child_process');
 const {execFile} = require('child_process');
+const mdns = require('mdns-js');
+const net = require('net');
+
+let noble;
+try {
+  noble = require('@abandonware/noble');
+  console.log('Noble imported successfully');
+} catch (error) {
+  console.error('Error importing Noble:', error.message);
+}
+
+let bleDevicesMap = new Map(); // To store full peripheral objects
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -8,6 +20,13 @@ let win
 
 var avrdudeErr = "";
 var avrdudeIsRunning = false;
+
+// Global variables for wireless connections
+let mdnsBrowser = null;
+let bleDevices = [];
+let mdnsDevices = [];
+let currentWirelessConnection = null;
+let wifiSocket = null;
 
 function createWindow () {
   // Create the browser window.
@@ -31,8 +50,8 @@ function createWindow () {
   });
 
   // auto hide menu bar (Win, Linux)
-  win.setMenuBarVisibility(false);
-  win.setAutoHideMenuBar(true);
+  win.setMenuBarVisibility(true); // false
+  win.setAutoHideMenuBar(false); // true
 
   // remove completely when app is packaged (Win, Linux)
   if (app.isPackaged) {
@@ -60,6 +79,131 @@ function createWindow () {
     }
     return { action: 'deny' };
   });
+  
+  // Initialize wireless discovery when UI is ready
+  win.webContents.on('did-finish-load', () => {
+    // Initialize wireless discovery
+    initMdnsBrowser();
+    initBLEScanner();
+  });
+}
+
+// Initialize mDNS browser
+function initMdnsBrowser() {
+  try {
+    mdnsBrowser = mdns.createBrowser(mdns.tcp('telnet'));
+    
+    mdnsBrowser.on('ready', function() {
+      console.log('mDNS browser ready');
+      mdnsBrowser.discover();
+    });
+    
+    mdnsBrowser.on('update', function(data) {
+      // Filter for ardustim devices
+      if (data.host && data.host.includes('ardustim')) {
+        console.log('mDNS device found:', data);
+        
+        const deviceInfo = {
+          name: data.host,
+          address: data.addresses[0],
+          port: data.port || 23, // Default to telnet port
+          type: 'wifi'
+        };
+        
+        // Check if device is already in our list
+        const existingIndex = mdnsDevices.findIndex(dev => dev.address === deviceInfo.address);
+        if (existingIndex === -1) {
+          mdnsDevices.push(deviceInfo);
+        } else {
+          mdnsDevices[existingIndex] = deviceInfo;
+        }
+        
+        // Send updated device list to renderer
+        if (win) {
+          win.webContents.send('update-wireless-devices', { wifi: mdnsDevices, ble: bleDevices });
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error initializing mDNS browser:', error);
+    if (win) {
+      win.webContents.send('wireless-error', 'Failed to initialize mDNS: ' + error.message);
+    }
+  }
+}
+
+// Initialize BLE scanner
+function initBLEScanner() {
+  try {
+    if (!noble) {
+      console.log('BLE not available - Noble module not loaded');
+      return;
+    }
+    
+    noble.on('stateChange', function(state) {
+      console.log('BLE state:', state);
+      if (state === 'poweredOn') {
+        // Start scanning for BLE devices
+        noble.startScanning(['6E400001-B5A3-F393-E0A9-E50E24DCCA9E'], false);
+      } else {
+        noble.stopScanning();
+        if (win) {
+          win.webContents.send('ble-state-change', state);
+		  
+        }
+      }
+    });
+    
+    noble.on('discover', function(peripheral) {
+  console.log('BLE device found:', peripheral.advertisement.localName || peripheral.id);
+  
+  // If it has the Nordic UART Service or has ArduStim in the name
+  const isArduStim = peripheral.advertisement.localName && 
+                    peripheral.advertisement.localName.includes('ArduStim');
+  const hasNordicService = peripheral.advertisement.serviceUuids && 
+                          peripheral.advertisement.serviceUuids.some(uuid => 
+                            uuid.toLowerCase().includes('6e400001'));
+  
+  if (isArduStim || hasNordicService) {
+    // Create a serializable version without the peripheral object
+    const deviceInfo = {
+      id: peripheral.id,
+      name: peripheral.advertisement.localName || 'ArduStim BLE',
+      rssi: peripheral.rssi,
+      type: 'ble'
+      // Don't include peripheral object here
+    };
+    
+    // Store the peripheral object in our map
+    bleDevicesMap.set(peripheral.id, peripheral);
+    
+    // Update the devices list
+    const existingIndex = bleDevices.findIndex(dev => dev.id === deviceInfo.id);
+    if (existingIndex === -1) {
+      bleDevices.push(deviceInfo);
+    } else {
+      bleDevices[existingIndex] = deviceInfo;
+    }
+    
+    // Send only the serializable device info
+    if (win) {
+      try {
+        win.webContents.send('update-wireless-devices', { 
+          wifi: mdnsDevices, 
+          ble: bleDevices
+        });
+      } catch (error) {
+        console.error('Error sending from webFrameMain: ', error);
+      }
+    }
+  }
+});
+  } catch (error) {
+    console.error('Error initializing BLE scanner:', error);
+    if (win) {
+      win.webContents.send('wireless-error', 'Failed to initialize BLE: ' + error.message);
+    }
+  }
 }
 
 app.allowRendererProcessReuse = false;
@@ -90,6 +234,156 @@ app.on('activate', () => {
     createWindow()
   }
 })
+
+// Handle IPC messages from renderer process
+ipcMain.on('start-wireless-discovery', (event, type) => {
+  if (type === 'wifi' || !type) {
+    // Start or restart WiFi discovery
+    if (mdnsBrowser) {
+      mdnsBrowser.stop();
+      mdnsBrowser.discover();
+    } else {
+      initMdnsBrowser();
+    }
+    event.sender.send('wifi-discovery-started');
+  }
+  
+  if (type === 'ble' || !type) {
+    // Start or restart BLE discovery
+    if (noble) {
+      if (noble.state === 'poweredOn') {
+        noble.stopScanning();
+        noble.startScanning(['6E400001-B5A3-F393-E0A9-E50E24DCCA9E'], false);
+        event.sender.send('ble-discovery-started');
+      } else {
+        event.sender.send('ble-state-change', noble.state);
+      }
+    } else {
+      initBLEScanner();
+    }
+  }
+});
+
+ipcMain.on('connect-wifi', (event, details) => {
+  try {
+    wifiSocket = new net.Socket();
+    
+    wifiSocket.connect(details.port, details.address, function() {
+      console.log('Connected to WiFi device:', details.address);
+      currentWirelessConnection = {
+        type: 'wifi',
+        details: details,
+        socket: wifiSocket
+      };
+      event.sender.send('wireless-connected', { success: true, type: 'wifi', details: details });
+    });
+    
+    wifiSocket.on('data', function(data) {
+      // Forward data to renderer process
+      event.sender.send('wireless-data', data.toString());
+    });
+    
+    wifiSocket.on('close', function() {
+      console.log('WiFi connection closed');
+      currentWirelessConnection = null;
+      event.sender.send('wireless-disconnected', 'wifi');
+    });
+    
+    wifiSocket.on('error', function(error) {
+      console.error('WiFi connection error:', error);
+      event.sender.send('wireless-error', error.message);
+    });
+  } catch (error) {
+    console.error('Error connecting to WiFi device:', error);
+    event.sender.send('wireless-connected', { success: false, error: error.message });
+  }
+});
+
+ipcMain.on('connect-ble', async (event, deviceId) => {
+  try {
+    // Get the full peripheral object from our map
+    const peripheral = bleDevicesMap.get(deviceId);
+    
+    if (!peripheral) {
+      throw new Error('Device not found');
+    }
+    
+    // Rest of your connection code using this peripheral object
+    await new Promise((resolve, reject) => {
+      peripheral.connect(error => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    });
+    
+    // Continue with rest of connection code...
+    
+    // For any updates back to the renderer, send only serializable data
+    event.sender.send('wireless-connected', { 
+      success: true, 
+      type: 'ble', 
+      details: {
+        id: peripheral.id,
+        name: peripheral.advertisement.localName || 'ArduStim BLE',
+        rssi: peripheral.rssi,
+        type: 'ble'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error connecting to BLE device:', error);
+    event.sender.send('wireless-connected', { success: false, error: error.message });
+  }
+});
+
+ipcMain.on('disconnect-wireless', event => {
+  if (currentWirelessConnection) {
+    if (currentWirelessConnection.type === 'wifi' && wifiSocket) {
+      wifiSocket.destroy();
+      wifiSocket = null;
+    } else if (currentWirelessConnection.type === 'ble' && currentWirelessConnection.peripheral) {
+      // Unsubscribe from notifications first
+      if (currentWirelessConnection.txCharacteristic) {
+        currentWirelessConnection.txCharacteristic.unsubscribe();
+      }
+      currentWirelessConnection.peripheral.disconnect();
+    }
+    
+    const type = currentWirelessConnection.type;
+    currentWirelessConnection = null;
+    event.sender.send('wireless-disconnected', type);
+  }
+});
+
+ipcMain.on('send-wireless-data', (event, data) => {
+  if (!currentWirelessConnection) {
+    event.sender.send('wireless-error', 'Not connected');
+    return;
+  }
+  
+  try {
+    if (currentWirelessConnection.type === 'wifi' && wifiSocket) {
+      wifiSocket.write(data);
+    } else if (currentWirelessConnection.type === 'ble' && currentWirelessConnection.rxCharacteristic) {
+      // BLE may need to chunk data if it's too large
+      const chunkSize = 20; // BLE MTU is typically small
+      if (typeof data === 'string') {
+        data = Buffer.from(data);
+      }
+      
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, Math.min(i + chunkSize, data.length));
+        currentWirelessConnection.rxCharacteristic.write(chunk, false);
+      }
+    }
+  } catch (error) {
+    console.error('Error sending wireless data:', error);
+    event.sender.send('wireless-error', error.message);
+  }
+});
 
 ipcMain.on('uploadFW', (e, args) => {
 
