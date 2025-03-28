@@ -31,6 +31,15 @@ enum wirelessComm{
   WIFI_AND_BLUETOOTH
 };
 
+
+// WiFi connection states
+enum WiFiConnectionState {
+  WIFI_DISABLED,
+  WIFI_DISCONNECTED,
+  WIFI_CONNECTING,
+  WIFI_CONNECTED
+};
+
 /**
  * Timer prescaler options for AVR
  */
