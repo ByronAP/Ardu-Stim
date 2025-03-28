@@ -229,7 +229,7 @@
        break;
  
     case (byte) 'w': // Get wireless communication type
-       stream->println(getWirelessComm());
+       stream->println(getWirelessSupportType());
        cmdProcessed = true;
        break;
 
