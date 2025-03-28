@@ -90,6 +90,7 @@
    resetNewOCR1A(currentStatus.rpm); // Set initial RPM, using HAL Timer functions internally
 
    wifiHalInit(); // Initialize WiFi
+   bleHalInit(); // Initialize Bluetooth
  }
  
  /**

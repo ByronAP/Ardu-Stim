@@ -25,20 +25,13 @@
 #include <Arduino.h>
 #include "enums.h"
 #include "wifiHal.h"
+#include "bleHal.h"
 
 #if defined(__AVR__)
 #include <avr/interrupt.h>
 #include <EEPROM.h> // For AVR Storage HAL
 #elif defined(ESP32) && !defined(ESP32C6)
 #include <esp_timer.h>
-#include <driver/gptimer.h>
-#include <Preferences.h> // For ESP32 Storage HAL
-#elif defined(ESP32C6)
-#include <esp_timer.h>
-#include <driver/gptimer.h>
-#include <esp_adc/adc_oneshot.h>
-#include <esp_adc/adc_cali.h>
-#include <esp_adc/adc_cali_scheme.h>
 #include <Preferences.h> // For ESP32 Storage HAL
 #endif
 

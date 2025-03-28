@@ -3,7 +3,7 @@
  * ArduStim - ESP32 Hardware Abstraction Layer implementation
  *
  * Copyright 2014 David J. Andruczyk
- * 
+ *
  * Ardu-Stim software is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -21,126 +21,119 @@
 #include "hal.h"
 #include "globals.h"
 #include "comms.h"
+#include "bleHal.h" // Include BLE HAL
 #include "enums.h"
-#include <esp_timer.h>
-#include <driver/gptimer.h>
 #include <Preferences.h>
 #include <Arduino.h> // Needed for digitalWrite, analogRead, Serial, HIGH, LOW, pinMode
+#include <esp_timer.h> // USE THIS for timers compatible with Arduino Core 2.x / IDF 4.4
 
-wirelessComm getWirelessSupportType(){
+wirelessComm getWirelessSupportType() {
   return WIFI_AND_BLUETOOTH;
 }
 
 
-// --- Timer HAL Implementation for ESP32 ---
+// --- Timer HAL Implementation for ESP32 using esp_timer ---
 extern wheels Wheels[]; // Defined in globals.h
 extern struct configTable config; // Defined in globals.h
 extern struct status currentStatus; // Define for access to currentStatus
 
-volatile uint64_t newTimerIntervalUs;
-gptimer_handle_t timer = NULL; 
+volatile uint64_t newTimerIntervalUs = 1000; // Default interval
+esp_timer_handle_t periodic_timer; // Timer handle
 
 static timerCallbackPtr esp32TimerCallback;
 
 /**
- * @brief Timer interrupt callback for ESP32
- * 
- * This function is called when the timer triggers. It executes the callback
- * and updates the timer interval if needed.
- * 
- * @param timer Timer handle
- * @param edata Event data for the timer alarm
- * @param user_ctx User context pointer (unused)
- * @return bool True to continue with auto-reload
+ * @brief Timer interrupt callback for ESP32 (using esp_timer)
+ *
+ * This function is called periodically by the esp_timer framework.
+ *
+ * @param arg User context pointer (unused in this case)
  */
-bool IRAM_ATTR esp32TimerIsrCallback(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx) {
+void IRAM_ATTR esp32TimerIsrCallbackWrapper(void* arg) {
     if (esp32TimerCallback) {
         esp32TimerCallback();
     }
-    
-    extern volatile uint16_t edgeCounter;
-    extern wheels Wheels[];
-    extern struct configTable config;
-    
-    if (newTimerIntervalUs != edata->alarm_value) {
-        gptimer_alarm_config_t alarmConfig;
-        memset(&alarmConfig, 0, sizeof(alarmConfig));
-        alarmConfig.alarm_count = newTimerIntervalUs;
-        alarmConfig.reload_count = 0;
-        alarmConfig.flags.auto_reload_on_alarm = true;
-        gptimer_set_alarm_action(timer, &alarmConfig);
-    }
-
-    return true;
 }
 
 /**
- * @brief Initialize the ESP32 timer
+ * @brief Initialize the ESP32 timer (using esp_timer)
  * @param initialRpm Initial RPM value to set
  * @param callback Function to call on timer interrupt
  */
 void timerHalInit(uint32_t initialRpm, timerCallbackPtr callback) {
     esp32TimerCallback = callback;
-    gptimer_config_t timerConfig = {
-        .clk_src = GPTIMER_CLK_SRC_DEFAULT,
-        .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 1000000, // 1 MHz, 1 tick = 1 us
-    };
-    ESP_ERROR_CHECK(gptimer_new_timer(&timerConfig, &timer));
-    gptimer_event_callbacks_t timerCallbacks = {
-        .on_alarm = esp32TimerIsrCallback,
-    };
-    ESP_ERROR_CHECK(gptimer_register_event_callbacks(timer, &timerCallbacks, NULL));
 
-    timerHalSetRpm(initialRpm);
+    // Calculate initial interval
+    timerHalSetRpm(initialRpm); // This calculates newTimerIntervalUs
 
-    gptimer_alarm_config_t alarmConfig = {
-        .alarm_count = newTimerIntervalUs,
-        .reload_count = 0,
+    // Configure the timer
+    const esp_timer_create_args_t periodic_timer_args = {
+            .callback = &esp32TimerIsrCallbackWrapper,
+            .name = "ardustim_timer" // Optional name for debugging
     };
-    alarmConfig.flags.auto_reload_on_alarm = true;
-    ESP_ERROR_CHECK(gptimer_set_alarm_action(timer, &alarmConfig));
 
-    ESP_ERROR_CHECK(gptimer_enable(timer));
-    timerHalStart(); // Start timer after initialization
+    ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
+
+    // Start the timer immediately
+    timerHalStart();
 }
 
 /**
- * @brief Set timer frequency based on RPM
+ * @brief Set timer frequency based on RPM (using esp_timer)
  * @param rpm Target RPM value
  */
 void timerHalSetRpm(uint32_t rpm) {
-    if (rpm < 10) return;
-    uint64_t fInterrupt = ((uint64_t)rpm * Wheels[config.wheel].wheel_max_edges) / 60ULL;
-    if (fInterrupt == 0) fInterrupt = 1;
-    newTimerIntervalUs = 1000000ULL / fInterrupt;
-    if (newTimerIntervalUs < 1) newTimerIntervalUs = 1;
+    if (rpm < 10) rpm = 10; // Enforce minimum RPM
 
-        // Configure new alarm
-        gptimer_alarm_config_t alarmConfig = {
-            .alarm_count = newTimerIntervalUs,
-            .reload_count = 0,
-        };
-        alarmConfig.flags.auto_reload_on_alarm = true;
-        
-        // Update timer configuration (stop, set new alarm, start)
-        gptimer_stop(timer);
-        gptimer_set_alarm_action(timer, &alarmConfig);
-        gptimer_start(timer);
+    // Calculate the desired interrupt frequency (interrupts per second)
+    // Use floating point for intermediate calculation to avoid premature truncation
+    float fInterruptHz = ((float)rpm * Wheels[config.wheel].wheel_max_edges) / 60.0f;
+
+    // Avoid division by zero or extremely low frequencies
+    if (fInterruptHz < 0.01f) fInterruptHz = 0.01f;
+
+    // Calculate the interval in microseconds
+    // Use 64-bit unsigned integer to avoid overflow with high frequencies
+    uint64_t intervalUs = (uint64_t)(1000000.0f / fInterruptHz);
+
+    // Apply safety limits (e.g., minimum interval to prevent ISR overload)
+    // Max 50kHz interrupt rate (20us interval) might be a reasonable limit
+    const uint64_t minIntervalUs = 20;
+    if (intervalUs < minIntervalUs) intervalUs = minIntervalUs;
+
+    // Apply a maximum interval if needed (e.g., 1 second)
+    const uint64_t maxIntervalUs = 1000000;
+    if (intervalUs > maxIntervalUs) intervalUs = maxIntervalUs;
+
+    // Store the new interval
+    newTimerIntervalUs = intervalUs;
+
+    // If timer is already running, restart it with the new interval
+    if (periodic_timer != NULL && esp_timer_is_active(periodic_timer)) {
+        timerHalStop();
+        timerHalStart();
+    }
+}
+
+
+/**
+ * @brief Start the timer (using esp_timer)
+ */
+void timerHalStart() {
+    if (periodic_timer != NULL) {
+       // Ensure it's stopped before starting to apply new interval
+       esp_timer_stop(periodic_timer);
+       ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, newTimerIntervalUs));
+    }
 }
 
 /**
- * @brief Start the timer
+ * @brief Stop the timer (using esp_timer)
  */
-void timerHalStart() { 
-    ESP_ERROR_CHECK(gptimer_start(timer)); 
-}
-
-/**
- * @brief Stop the timer
- */
-void timerHalStop() { 
-    ESP_ERROR_CHECK(gptimer_stop(timer)); 
+void timerHalStop() {
+     if (periodic_timer != NULL && esp_timer_is_active(periodic_timer)) {
+        ESP_ERROR_CHECK(esp_timer_stop(periodic_timer));
+    }
 }
 
 // --- Storage HAL Implementation for ESP32 ---
@@ -149,8 +142,8 @@ Preferences preferences;
 /**
  * @brief Initialize the storage system
  */
-void storageHalInit() { 
-    preferences.begin("ardustim", false); 
+void storageHalInit() {
+    preferences.begin("ardustim", false);
 }
 
 /**
@@ -159,7 +152,7 @@ void storageHalInit() {
  */
 void storageHalLoadConfig(struct configTable *config) {
     size_t readSize = preferences.getBytes("config", config, sizeof(*config));
-    
+
     if (readSize != sizeof(*config) || config->version != VERSION) {
         // Set default values
         config->version = VERSION;
@@ -177,15 +170,15 @@ void storageHalLoadConfig(struct configTable *config) {
         config->compressionOffset = 0;
         config->compressionDynamic = false;
         config->wifiEnabled = false;
-        config->bluetoothEnabled = false;
+        config->bluetoothEnabled = false; // Default BLE disabled
         config->bluetoothPin = 0;
         memset(config->wifiSSID, 0, sizeof(config->wifiSSID));
         memset(config->wifiPassword, 0, sizeof(config->wifiPassword));
-        
+
         // Save defaults
         storageHalSaveConfig(config);
     }
-    
+
     // Validate configuration - function is declared in hal.h
     validateConfiguration(config);
 }
@@ -210,10 +203,10 @@ void adcHalInit() {
 /**
  * @brief Read value from ADC channel
  * @param channel Channel to read
- * @return ADC reading (0-4095)
+ * @return ADC reading (0-4095 converted to 0-1023 for compatibility)
  */
 uint16_t adcHalReadChannel(uint8_t channel) {
-    if (channel == 0) { 
+    if (channel == 0) {
         uint16_t rawValue = analogRead(ADC_PIN);
         // Scale to match AVR ADC range for RPM calculation
         return rawValue >> 2; // Convert 12-bit (0-4095) to 10-bit (0-1023)
@@ -259,5 +252,8 @@ void halDoWork() {
     }
 
     // Process WiFi tasks
-  wifiHalDoWork();
+    wifiHalDoWork();
+
+    // Process BLE tasks
+    bleHalDoWork();
   }
